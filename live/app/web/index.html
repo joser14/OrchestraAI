@@ -2398,7 +2398,8 @@ function setLook(v) {
 document.querySelectorAll('#setLook button').forEach((b) => { b.onclick = () => { setLook(b.dataset.v); toast('Look: ' + b.textContent); }; });
 setLook(document.documentElement.dataset.look === '8bit' ? '8bit' : 'classic');
 $('setNotify').onchange =(e) => saveSetting({ notify: e.target.checked }, 'Desktop notifications ' + (e.target.checked ? 'on' : 'off'));
-$('setInterpret').onchange =(e) => saveSetting({ interpret: e.target.checked }, 'Interpret requests ' + (e.target.checked ? 'on' : 'off'));
+$('setLearn').onchange = (e) => saveSetting({ learn: e.target.checked }, 'Learn from conversations ' + (e.target.checked ? 'on' : 'off'));
+$('setInterpret').onchange = (e) => saveSetting({ interpret: e.target.checked }, 'Interpret requests ' + (e.target.checked ? 'on' : 'off'));
 $('setLight').onchange = (e) => saveSetting({ lightContext: e.target.checked }, 'Light context ' + (e.target.checked ? 'on' : 'off')).then(loadSettings);
 document.querySelectorAll('#setRun button').forEach((b) => { b.onclick = () => saveSetting({ runMinutes: +b.dataset.v }, 'Run time limit: ' + b.textContent).then(loadSettings); });
 // Ticked types: abliterated / standard. Models you add yourself (custom) are always shown and usable, so they get no box.
