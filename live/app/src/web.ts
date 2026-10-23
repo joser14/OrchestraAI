@@ -27,7 +27,7 @@ import { reconcileAliases } from './setup.ts';
 import { AGENT_SPEC_VERSION, applyAgentSpecs, agentSpecs } from './agents.ts';
 import type { McpAccess } from './config.ts';
 import { teamPlan, setOllamaParallel } from './capacity.ts';
-import { getSettings, saveSettings, readAutonomy, pendingApprovals, resolveApproval, startWithPc, readAgentOptions, applyAgentOptions } from './settings.ts';
+import { getSettings, saveSettings, readAutonomy, pendingApprovals, resolveApproval, startWithPc, readAgentOptions, applyAgentOptions, setSkillWorkshop } from './settings.ts';
 import { gpuMemMB } from './hardware.ts';
 const run = promisify(execFile);
 const require = createRequire(import.meta.url);
@@ -316,7 +316,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
       let clearedAt = ''; try { clearedAt = readFileSync(join(cfg.boardDir, 'tasks-cleared.txt'), 'utf8').trim(); } catch {}
       let tasks = o.store.tasks(); if (clearedAt) tasks = tasks.filter((t) => t.status === 'open' || t.status === 'stuck' || new Date(t.created) > new Date(clearedAt));
       const costs = o.store.get<Record<string, any>>('taskCosts', {});   // time / runs / tokens of finished tasks
-      return { tasks: tasks.map((t) => (costs[`${t.id}|${t.created}`] ? { ...t, cost: costs[`${t.id}|${t.created}`] } : t)), paused: existsSync(join(cfg.root, '.stopped')) };
+      return { tasks: tasks.map((t) => (costs[`${t.id}|${t.created}`] ? { ...t, cost: costs[`${t.id}|${t.created}`] } : t)), paused: existsSync(join(cfg.root, '.stopped')), doneToday: o.store.doneToday() };
     },
     '/api/automations': () => ({ lines: (existsSync(join(cfg.boardDir, 'AUTOMATIONS.md')) ? readFileSync(join(cfg.boardDir, 'AUTOMATIONS.md'), 'utf8') : '').split(/\r?\n/).filter((l) => /^\s*(daily|every)\s/.test(l)) }),
     '/api/history': async () => { try { const { stdout } = await run('git', ['-C', cfg.workDir, 'log', '--pretty=format:%h|%ad|%s', '--date=format:%m-%d %H:%M', '-n', '12', '--name-only'], { windowsHide: true });
@@ -376,7 +376,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
         models: { loaded, installed: tags.count },
         storage: { data: disk(cfg.root), models: disk(existsSync(modelsDir) ? modelsDir : cfg.root), sameDrive: resolve(cfg.root).slice(0, 2).toLowerCase() === resolve(modelsDir).slice(0, 2).toLowerCase() },
         team: { working: cfg.agents.filter((a) => o.running(a)), agents: cfg.agents.length, open: tasks.filter((t) => t.status === 'open').length, stuck: tasks.filter((t) => t.status === 'stuck').length,
-          doneToday: tasks.filter((t) => t.status === 'done' && new Date(t.updated).toDateString() === today).length },
+          doneToday: o.store.doneToday() },
         at: now,
         ...(q.get('hist') ? { hist: tel.hist } : {}),   // the last 15 min, so a freshly opened page has full charts
       };
@@ -639,6 +639,11 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
     '/api/schedules/toggle': async (b) => {
       const j = (await o.gw.jobs()).find((x: any) => x.id === String(b.id || '')); if (!j) throw new Error('no such job');
       if (/-board$/.test(String(j.name || ''))) throw new Error(`${j.name} is how Orchestra starts ${j.agentId}: switching it off would stop that agent`);
+      // system-owned: OpenClaw refuses to edit these jobs; they follow its skill workshop setting (all agents at once)
+      if (/^skill-collection-review-/.test(String(j.name || ''))) {
+        await setSkillWorkshop(o.gw, !!b.enabled, (m) => o.log(m)); act(`skill review jobs ${b.enabled ? 'on' : 'off'}`);
+        return { ok: true, msg: `Skill review jobs ${b.enabled ? 'switched on' : 'switched off'} for every agent (OpenClaw runs them from one setting).` };
+      }
       await o.gw.updateJob(j.id, { enabled: !!b.enabled }); act(`schedule ${j.name} ${b.enabled ? 'on' : 'off'}`);
       return { ok: true, msg: `${j.name} ${b.enabled ? 'switched on' : 'switched off'}.` };
     },
@@ -832,7 +837,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
     const t = (tasks?.tasks || []) as any[];
     return { agents: agents?.agents || [], cards: live?.cards || [], messages: live?.messages || [], decisions: (live?.decisions || []).slice(0, 12),
       tasks: t.filter((x) => ['open', 'stuck'].includes(x.status)).map((x) => ({ id: x.id, text: x.text, assignee: x.assignee, status: x.status })),
-      doneToday: t.filter((x) => x.status === 'done' && new Date(x.updated).toDateString() === new Date().toDateString()).length,
+      doneToday: tasks?.doneToday ?? 0,
       paused: !!tasks?.paused, gpu: running?.gpu || null, gateway: !!running?.gateway };
   }
   function ensureStreamTimer() {

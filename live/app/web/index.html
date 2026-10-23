@@ -97,13 +97,14 @@
   .rrow .cmd { font-family: ui-monospace, Consolas, monospace; }
   .kind { font-size: 11px; font-weight: 600; color: #fff; border-radius: 8px; padding: 0 6px; text-align: center; }
   .kind.model { background: var(--main); } .kind.proc { background: var(--other); }
+  h2 { display: flow-root; }   /* a heading contains its right-floated controls (they squeezed the block below: chat was 21 px wide) */
   .chat { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; padding: 4px 2px; }
   .msg { max-width: 85%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; word-wrap: break-word; font-size: 14px; }
   .msg.jr { align-self: flex-end; background: color-mix(in srgb, var(--jr) 18%, var(--panel)); border-bottom-right-radius: 4px; }
   .msg.main { align-self: flex-start; background: var(--bg); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
   .msg .when { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
   .msg.thinking { color: var(--muted); font-style: italic; }
-  .chatform { display: flex; gap: 8px; margin-top: 8px; }
+  .tle.clamp { cursor: pointer; } .tle.clamp:not(.open) .tx { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }  .chatform { display: flex; gap: 8px; margin-top: 8px; }
   .chatform input { flex: 1; min-width: 0; font: inherit; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
   .tasks { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; }
   .trow { display: grid; grid-template-columns: 44px 74px 70px minmax(0, 1fr) 40px; gap: 8px; align-items: baseline; font-size: 13px; padding: 3px 0; border-bottom: 1px solid var(--border); }
@@ -270,7 +271,8 @@
   .mem-file:hover { border-color: var(--border); } .mem-file.on { border-color: var(--red); background: color-mix(in srgb, var(--red) 8%, transparent); }
   .mem-file.empty > span:first-child { color: var(--muted); font-style: italic; }
   .mem-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; } .mem-head h2 { margin: 0; }
-  .mem-actions { display: flex; align-items: center; gap: 10px; flex: none; }
+  .mem-head > div:first-child { flex: 1; min-width: 0; }
+  .mem-actions { display: flex; align-items: center; gap: 10px; flex: 0 1 auto; max-width: 38%; text-align: right; }
   .mem-text { width: 100%; min-height: calc(100vh - 290px); resize: vertical; padding: 12px; background: var(--bg); color: var(--text); border: 1px solid var(--border); font: 14px/1.5 ui-monospace, 'JetBrains Mono', monospace; }
   .mem-foot { margin-top: 6px; }
   /* Skills page: one-height filter bar + uniform cards (icon box, name + status, 3-line summary, footer) */
@@ -1325,19 +1327,26 @@ async function loadStatus() {
   const jobs = Array.isArray(s.cron) ? s.cron : (s.cron && (s.cron.jobs || s.cron.items));
   // show each agent's current model (main can switch workers with "MODEL worker=fast")
   const ALIAS = { 'qwen3-abl-agent': 'smart 8B', 'qwen3-abl-fast': 'fast 4B', 'qwen35-abl-vision': 'vision 4B', 'qwen3-abl-tiny': 'tiny 1.7B' };
-  const DEFAULT = { main: 'smart 8B', worker: 'fast 4B', worker2: 'fast 4B' };
-  for (const a of ['main', 'worker', 'worker2']) {
-    const lab = $('lbl-' + a); if (!lab) continue;
+  const DEFAULT = { main: 'smart 8B' };
+  for (const lab of document.querySelectorAll('#agents [id^="lbl-"]')) {
+    const a = lab.id.slice(4);
     const job = Array.isArray(jobs) ? jobs.find((j) => j.name === a + '-board') : null;
     const m = job && job.payload && job.payload.model;
-    const name = m ? (ALIAS[String(m).replace(/^ollama\//, '').replace(/:latest$/, '')] || m) : DEFAULT[a];
-    lab.textContent = `${lab.dataset.base} · ${name}`;
+    const short = m ? String(m).replace(/^ollama\//, '').replace(/:latest$/, '') : '';
+    const name = short ? (ALIAS[short] || short) : DEFAULT[a];
+    lab.textContent = name ? `${lab.dataset.base} · ${name}` : lab.dataset.base;
   }
   if (Array.isArray(jobs)) {
     if (!jobs.length) c.append(el('div', null, 'no jobs'));
     for (const j of jobs) {
       const r = el('div', 'row');
-      r.append(el('span', null, j.name || j.id), el('span', null, j.enabled === false ? 'disabled' : (j.nextRunAt || j.next || j.schedule || 'scheduled')));
+      // OpenClaw's schedule is an object ({kind, everyMs} or {kind, expr}): describe it, plus the next run when known
+      const sc = j.schedule || {}, next = (j.state && j.state.nextRunAtMs) || j.nextRunAtMs;
+      const when = typeof sc === 'string' ? sc : sc.everyMs ? `every ${sc.everyMs >= 3600000 ? +(sc.everyMs / 3600000).toFixed(1) + ' h' : Math.round(sc.everyMs / 60000) + ' min'}` : sc.expr ? `cron ${sc.expr}` : sc.at ? 'once' : 'scheduled';
+      // board jobs carry a placeholder yearly cron: Orchestra starts them itself when there is work
+      const nd = next && new Date(next), nextTxt = nd ? (nd.toDateString() === new Date().toDateString() ? nd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : nd.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })) : '';
+      const txt = j.enabled === false ? 'off' : /-board$/.test(j.name || '') ? 'started by Orchestra when there is work' : when + (nextTxt ? ` · next ${nextTxt}` : '');
+      r.append(el('span', null, j.name || j.id), el('span', 'sub', txt));
       c.append(r);
     }
   } else {
@@ -1355,8 +1364,14 @@ $('postForm').addEventListener('submit', async (e) => {
 $('text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.ctrlKey) $('postForm').requestSubmit(); });
 
 // ---- agents: Run now ----
-const AGENTS = [['main', 'composer · always on'], ['worker', 'worker · on task'], ['worker2', 'worker · on task']];
-for (const [id, label] of AGENTS) {
+// one row per agent the team actually has (Settings > Team size goes up to 8 workers)
+async function buildAgentRows() {
+  let ids = ['main', 'worker', 'worker2'];
+  try { const a = await fetch('/api/agents').then((x) => x.json()); if (a && a.agents && a.agents.length) ids = a.agents.map((x) => x.agent); } catch {}
+  $('agents').replaceChildren();
+  for (const id of ids) addAgentRow(id, id === 'main' ? 'composer · always on' : 'worker · runs when given a task');
+}
+function addAgentRow(id, label) {
   const r = el('div', 'row');
   const lbl = el('span', 'sub', label); lbl.id = 'lbl-' + id; lbl.dataset.base = label;
   const left = el('span'); left.append(el('span', 'who a-' + id, id), document.createTextNode('  '), lbl);
@@ -1373,6 +1388,7 @@ for (const [id, label] of AGENTS) {
   r.append(left, b);
   $('agents').append(r);
 }
+buildAgentRows();
 
 // ---- Command Center ----
 $('dashBtn').onclick = async () => {
@@ -1559,7 +1575,8 @@ async function loadTasks() {
   const cnt = (s) => tasks.filter((t) => t.status === s).length;
   $('taskBadge').textContent = (cnt('open') + cnt('stuck')) || '';
   $('taskSummary').textContent = tasks.length ? `${cnt('open')} open · ${cnt('stuck')} stuck · ${cnt('done')} done` : '';
-  if (!tasks.length) { box.append(el('div', 'sub', 'No tasks yet. Ask main for something; it splits work into tasks for the workers.')); return; }
+  // finished tasks are archived when the board is quiet (numbering restarts at T1): say what today brought, not "nothing"
+  if (!tasks.length) { box.append(el('div', 'sub', r.doneToday ? `Nothing open. ${r.doneToday} task${r.doneToday > 1 ? 's' : ''} finished today - the results are on the Files page.` : 'No tasks yet. Ask the team for something: the composer splits it into tasks for the workers.')); return; }
   document.querySelectorAll('#taskView button').forEach((b) => b.classList.toggle('on', b.dataset.v === taskView));
   if (taskView === 'board') {
     // Kanban: queued (waiting for its worker), working (its worker is running), stuck, done (newest first)
@@ -1642,6 +1659,7 @@ function showTab(name) {
   if (window.detailsShow) window.detailsShow(name === 'details');
   if (name === 'board') loadTalkStats();
   if (name === 'settings') loadSettings();
+  if (name === 'dash') setTimeout(loadTelemetry, 0);   // fill the tiles now, not at the next 2 s tick
   if (name === 'metrics') { setTimeout(loadMetrics, 0); loadStorage(); }   // after the pane is visible, so charts can measure their width
   logsShow(name === 'logs');
   document.querySelectorAll('.tabpane').forEach((p) => p.classList.toggle('on', p.id === 'tab-' + name));
@@ -1666,7 +1684,7 @@ async function loadDash() {
   if (ag && ag.agents) facts.busy = ag.agents.filter((a) => a.running).map((a) => a.agent);
   if (tk && tk.tasks) {
     const open = tk.tasks.filter((t) => ['open', 'stuck'].includes(t.status)); facts.open = open.length; facts.stuck = open.filter((t) => t.status === 'stuck').length;
-    facts.done = tk.tasks.filter((t) => t.status === 'done' && new Date(t.updated).toDateString() === today).length;
+    facts.done = tk.doneToday ?? tk.tasks.filter((t) => t.status === 'done' && new Date(t.updated).toDateString() === today).length;
   }
   if (wk && wk.files) {
     // deliverables: the newest files of any kind
@@ -2378,6 +2396,7 @@ async function loadTeam() {
 
 // ---- live team: one card per agent/helper session, like a swarm view ----
 // Verbose timeline of one session: 💭 thinking, 💬 what it says, ⚙ each tool call (✓/✗) with its result on click.
+const OPEN_THINK = new Set();
 function renderTimeline(box, c) {
   const keep = box.scrollTop, atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
   box.replaceChildren();
@@ -2389,7 +2408,15 @@ function renderTimeline(box, c) {
       tx.append(el('span', 'tn', e.tool + ' '), el('span', 'ta', e.args + ' '), el('span', 'st-' + e.state, e.state === 'ok' ? '✓' : e.state === 'error' ? '✗' : '…'));
       if (e.result) { const d = el('details'); d.append(el('summary', null, 'result'), el('pre', null, e.result)); tx.append(d); }
       row.append(el('span', 'ic', '⚙'), tx);
-    } else row.append(el('span', 'ic', e.kind === 'think' ? '💭' : '💬'), el('span', 'tx', e.text));
+    } else {
+      row.append(el('span', 'ic', e.kind === 'think' ? '💭' : '💬'), el('span', 'tx', e.text));
+      // long thinking shows 4 lines; a click opens it (kept open across the 2 s refresh)
+      if (e.kind === 'think' && e.text && e.text.length > 280) {
+        const key = e.text.slice(0, 80); row.classList.add('clamp'); if (OPEN_THINK.has(key)) row.classList.add('open');
+        row.title = 'Click to show or hide the full thought';
+        row.onclick = () => { row.classList.toggle('open'); row.classList.contains('open') ? OPEN_THINK.add(key) : OPEN_THINK.delete(key); };
+      }
+    }
     box.append(row);
   }
   if (c.live) { const r = el('div', 'tle think'); r.append(el('span', 'ic', ''), el('span', 'tx', c.phase)); box.append(r); }

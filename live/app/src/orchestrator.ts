@@ -223,6 +223,9 @@ export class Orchestrator {
       if (answered || posts.some((p) => (p.from === agent || p.from === poster) && normalise(p.body).includes(probe))) continue;
       let to = 'main';
       if (agent === 'main') { const lastJr = posts.map((p) => p.from).lastIndexOf('jr'), lastMain = posts.map((p) => p.from).lastIndexOf('main'); to = lastJr > lastMain ? 'jr' : 'all'; }
+      // "Pass complete. Sleeping for 20 minutes." after every idle pass only buried real messages on the Board
+      if (to !== 'jr' && text.length < 200 && !/\bT\d+\b|[\\/]\w/.test(text)
+        && /\b(rest(ing)?|sleep(ing)?|pass (is )?(over|complete|done)|next (pass|run)|nothing (new|to do)|no (new |open )?(work|tasks|messages))\b/i.test(text)) continue;
       this.post(poster, to, `${text}\n\n_(relayed: ${agent} answered in its run but did not post)_`);
       this.log(`relayed ${agent}'s answer to the board (to ${to})`);
     }

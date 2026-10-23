@@ -18,7 +18,7 @@ import { UsageIndex } from './usage.ts';
 import { applyAgentSpecs, AGENT_SPEC_VERSION } from './agents.ts';
 import { syncTeam } from './bootstrap.ts';
 import { applyTeamSize } from './team.ts';
-import { getSettings, applyAgentOptions } from './settings.ts';
+import { getSettings, applyAgentOptions, pauseSkillReviews } from './settings.ts';
 import { trackWorkFiles } from './fileevents.ts';
 import { feedActivity } from './activityfeed.ts';
 import { startOllamaProxy } from './ollamaproxy.ts';
@@ -111,8 +111,9 @@ setInterval(() => { if (Date.now() - lastTick >= 29000 || cfg.agents.some((a) =>
 setInterval(health, 120000); health();
 // Hourly, and once 2 min after start: a service restarted more often than hourly never reached the timer, so the
 // work folder's history stopped being saved (seen: no snapshot for a week).
-setTimeout(() => housekeeping(o).catch(() => {}), 120000);
-setInterval(() => housekeeping(o).catch(() => {}), 3600000);
+const chores = () => { housekeeping(o).catch(() => {}); if (!dry) pauseSkillReviews(store, gw, (m) => o.log(m)).catch(() => {}); };
+setTimeout(chores, 120000);
+setInterval(chores, 3600000);
 setInterval(() => { try { usage.update(true); } catch (e: any) { o.log(`usage index: ${e.message}`); } }, 300000);
 try { usage.update(true); } catch (e: any) { o.log(`usage index: ${e.message}`); }
 process.on('SIGINT', () => { o.awake.set(false); store.close(); process.exit(0); });

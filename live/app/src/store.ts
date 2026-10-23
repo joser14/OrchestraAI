@@ -56,6 +56,12 @@ export class Store {
     try { for (const t of tasks) up.run(t.id, t.assignee, t.text, t.status, t.attempts, t.by, t.created, t.updated); this.db.exec('COMMIT'); }
     catch (e) { this.db.exec('ROLLBACK'); throw e; }
   }
+  /** Tasks finished since local midnight, archived ones included (an archive restarts numbering, not the day's count). */
+  doneToday(): number {
+    const d = new Date(); d.setHours(0, 0, 0, 0); const since = d.toISOString();
+    const q = (t: string) => Number((this.db.prepare(`SELECT count(*) c FROM ${t} WHERE status = 'done' AND updated >= ?`).get(since) as any).c);
+    return q('tasks') + q('task_archive');
+  }
   /** Move every task to the archive (never deleted) and start numbering again at T1. */
   archiveTasks(batch: string): number {
     this.db.exec('BEGIN');

@@ -105,14 +105,8 @@ export async function applyAgentOptions(store: Store, gw: Gateway, log: (m: stri
       log('openclaw: models now reached through Orchestra\'s proxy (tool-call rescue + live speed)');
     }
   } catch (e: any) { log(`openclaw: could not set the Ollama route: ${String(e.message).slice(0, 120)}`); }
+  await pauseSkillReviews(store, gw, log);
   for (const j of await gw.jobs()) {
-    // OpenClaw's weekly "skill-collection-review-<agent>" jobs fail on the team agents (they look for a
-    // workshop-skills folder that does not exist and trip OpenClaw's own sandbox) and take the GPU from real work:
-    // paused here, logged; they can be switched back on in OpenClaw's Control UI.
-    if (/^skill-collection-review-(main|worker\d*)$/.test(String(j.name || '')) && j.enabled !== false) {
-      try { await gw.updateJob(j.id, { enabled: false }); log(`openclaw: paused its "${j.name}" job (it fails on Orchestra's agents and competes for the GPU)`); } catch {}
-      continue;
-    }
     const m = /^(main|worker\d*)-board$/.exec(String(j.name || '')); if (!m) continue;
     const payload ={ kind: j.payload.kind, thinking: thinkingFor(s, m[1]), lightContext: s.lightContext, timeoutSeconds: s.runMinutes * 60 };
     const p = j.payload || {};
@@ -120,6 +114,27 @@ export async function applyAgentOptions(store: Store, gw: Gateway, log: (m: stri
     await gw.updateJob(j.id, { payload });
     log(`openclaw: ${m[1]} thinking ${payload.thinking}, light context ${payload.lightContext ? 'on' : 'off'}, run limit ${s.runMinutes} min`);
   }
+}
+
+/** OpenClaw's weekly "skill-collection-review-<agent>" jobs fail on the team agents (they look for a workshop-skills
+ *  folder that does not exist, trip OpenClaw's own sandbox, and the agent then spends a run guessing paths) and take
+ *  the GPU from real work. They are system-owned (cron.update refuses them: "system-owned monitor jobs cannot be
+ *  edited"); OpenClaw projects them from skills.workshop.autonomous.mode, which defaults to "auto". Switched off once
+ *  here (startup, team sync and hourly); switched back on from Schedules, it stays on. */
+export async function pauseSkillReviews(store: Store, gw: Gateway, log: (m: string) => void) {
+  if (store.get<boolean>('skillWorkshopOffDone', false)) return;
+  await setSkillWorkshop(gw, false, log);
+  store.set('skillWorkshopOffDone', true);
+}
+/** OpenClaw's skill workshop (its weekly per-agent skill review jobs): on = "auto" (OpenClaw's default), off = "off". */
+export async function setSkillWorkshop(gw: Gateway, on: boolean, log: (m: string) => void) {
+  const cur: any = await gw.rpc('config.get', {});
+  const mode = cur.sourceConfig?.skills?.workshop?.autonomous?.mode ?? 'auto', want = on ? 'auto' : 'off';
+  if (mode === want) return false;
+  await gw.rpc('config.patch', { raw: JSON.stringify({ skills: { workshop: { autonomous: { mode: want } } } }), baseHash: cur.hash });
+  log(on ? 'openclaw: skill review jobs switched back on (skills.workshop.autonomous.mode = auto)'
+    : 'openclaw: switched off its weekly skill review jobs (they fail on Orchestra\'s agents and compete for the GPU; switch them on in Schedules if wanted)');
+  return true;
 }
 
 /** What OpenClaw actually has for each agent's job (the Settings page shows this, not the stored wish). */

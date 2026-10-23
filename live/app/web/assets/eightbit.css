@@ -89,7 +89,7 @@ html[data-look="8bit"] ::-webkit-scrollbar-thumb { background: var(--edge); bord
 html[data-look="8bit"] ::-webkit-scrollbar-track { background: var(--bg); }
 
 /* a subtitle inside a heading stays small body text, not a giant pixel line */
-html[data-look="8bit"] h1 .sub, html[data-look="8bit"] h2 .sub, html[data-look="8bit"] h3 .sub {
+html[data-look="8bit"] h1 .sub, html[data-look="8bit"] h2 .sub, html[data-look="8bit"] h3 .sub, html[data-look="8bit"] .acc-lbl .sub {
   font-family: var(--vt) !important; font-size: 17px !important; text-transform: none !important; letter-spacing: 0 !important; font-weight: 400 !important; line-height: 1.2;
 }
 /* Skills cards in pixel style: name in the terminal face, small pixel status */
@@ -99,6 +99,28 @@ html[data-look="8bit"] .sk-foot, html[data-look="8bit"] .sk-miss { font-size: 16
 html[data-look="8bit"] .sk-st { font-family: var(--px); font-size: 7px; padding: 6px 7px; border-width: 2px; }
 html[data-look="8bit"] .sk-card { border: 2px solid var(--edge); box-shadow: 3px 3px 0 rgba(0, 0, 0, .55); }
 html[data-look="8bit"] .sk-e { border-width: 2px; }
+
+/* list rows that are buttons (Memory files): plain rows in the terminal face, not chunky red buttons */
+html[data-look="8bit"] .mem-file {
+  font-family: var(--vt) !important; font-size: 19px !important; text-transform: none; background: none !important; box-shadow: none !important;
+  border: 2px solid transparent !important; padding: 4px 8px; color: var(--text) !important; align-items: baseline;
+}
+html[data-look="8bit"] .mem-file > span:last-child { flex: none; color: var(--muted); font-size: 16px; white-space: nowrap; }
+html[data-look="8bit"] .mem-file > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-look="8bit"] .mem-file:hover { border-color: var(--edge) !important; }
+html[data-look="8bit"] .mem-file.on { border-color: var(--red, #ff2d3d) !important; background: color-mix(in srgb, var(--red, #ff2d3d) 10%, transparent) !important; }
+html[data-look="8bit"] .mem-file:active:not(:disabled) { transform: none; }
+/* Logs page source list: name in small pixel type, size / age in the terminal face (it was all giant pixel text) */
+html[data-look="8bit"] .logs-item { box-shadow: none !important; text-transform: none; }
+html[data-look="8bit"] .logs-item b { font-size: 8px; text-transform: uppercase; }
+html[data-look="8bit"] .logs-item .sub { font-family: var(--vt) !important; font-size: 16px !important; text-transform: none; line-height: 1.1; }
+html[data-look="8bit"] .logs-item:active:not(:disabled) { transform: none; }
+html[data-look="8bit"] .mem-group { font-family: var(--px); font-size: 8px; letter-spacing: 0; margin: 12px 0 6px; }
+
+/* Settings rows: pixel buttons are wide, so a segmented control may wrap under its label instead of spilling out */
+html[data-look="8bit"] .set-row { flex-wrap: wrap; }
+html[data-look="8bit"] .set-row .seg { flex-wrap: wrap; max-width: 100%; }
+html[data-look="8bit"] .seg button { padding: 7px 9px; }
 
 /* Kanban in pixel style */
 html[data-look="8bit"] .kb-col, html[data-look="8bit"] .kb-card { border-width: 2px; }

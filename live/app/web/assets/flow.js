@@ -539,7 +539,7 @@
     if (!ag) return;
     const t = (tk && tk.tasks) || [];
     snap = { ...(snap || {}), agents: ag.agents || [], cards: (live && live.cards) || [], decisions: ((live && live.decisions) || []).slice(0, 12),
-      tasks: t.filter((x) => ['open', 'stuck'].includes(x.status)), doneToday: t.filter((x) => x.status === 'done' && new Date(x.updated).toDateString() === new Date().toDateString()).length,
+      tasks: t.filter((x) => ['open', 'stuck'].includes(x.status)), doneToday: (tk && tk.doneToday) ?? t.filter((x) => x.status === 'done' && new Date(x.updated).toDateString() === new Date().toDateString()).length,
       paused: !!(tk && tk.paused), gpu: run && run.gpu, gateway: !!(run && run.gateway) };
     render();
   }
