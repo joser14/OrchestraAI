@@ -1073,8 +1073,10 @@
           <div class="seg" id="setPar"></div></div>
         <div class="set-row" id="slotRow" hidden><div class="lbl"><b>Ollama parallel slots</b><div class="sub" id="slotNote"></div></div>
           <button type="button" class="small" id="slotBtn">Apply</button></div>
-        <div class="set-row"><div class="lbl"><b>Context size</b><div class="sub">how much each agent can read at once; bigger needs more VRAM</div></div>
-          <div class="seg" id="setCtx"><button type="button" data-v="16384">16k</button><button type="button" data-v="24576">24k</button><button type="button" data-v="32768">32k</button></div></div>
+        <div class="set-row"><div class="lbl"><b>Compact cache</b><div class="sub">stores Ollama's working memory at 8-bit: about half the graphics memory per token, quality loss negligible. Keeps models fully on the GPU (faster) and leaves room for more context or a second worker. Restarts Ollama.</div></div>
+          <input type="checkbox" class="switch" id="setKv"></div>
+        <div class="set-row"><div class="lbl"><b>Context size</b><div class="sub" id="ctxNote">how much each agent can read at once. 24k suits most jobs; bigger is slower, and small models lose focus past ~32k. Applied now.</div></div>
+          <div class="seg" id="setCtx"><button type="button" data-v="16384">16k</button><button type="button" data-v="24576">24k</button><button type="button" data-v="32768">32k</button><button type="button" data-v="49152" title="needs the compact cache; slower">48k</button><button type="button" data-v="65536" title="needs the compact cache; slower, small models lose focus">64k</button></div></div>
         <div class="set-row"><div class="lbl"><b>Start with the PC</b><div class="sub">run the Orchestra service when you sign in</div></div>
           <input type="checkbox" class="switch" id="setStart"></div>
         <div class="set-row"><div class="lbl"><b>Look</b><div class="sub">8-bit pixel art, or the classic smooth style (this computer)</div></div>
@@ -2412,7 +2414,8 @@ function renderSettings() {
   document.querySelectorAll('#setAuto button').forEach((b) => b.classList.toggle('on', b.dataset.v === s.autonomy));
   $('setAutoNote').textContent = AUTO_NOTE[s.autonomy] || AUTO_NOTE.custom;
   renderTeam();
-  document.querySelectorAll('#setCtx button').forEach((b) => b.classList.toggle('on', +b.dataset.v === s.ctx));
+  document.querySelectorAll('#setCtx button').forEach((b) => { b.classList.toggle('on', +b.dataset.v === s.ctx); b.disabled = +b.dataset.v > 32768 && s.kvCache !== 'q8_0'; });
+  $('setKv').checked = s.kvCache === 'q8_0';
   $('setStart').checked = !!s.startWithPc; $('setStart').disabled = s.startWithPc == null;
   $('setNotify').checked = s.notify !== false;
   renderKinds(); renderOpenClaw();
@@ -2485,7 +2488,8 @@ async function saveSetting(patch, msg) {
   } catch (e) { toast(e.message, true); renderSettings(); }
 }
 document.querySelectorAll('#setAuto button').forEach((b) => { b.onclick = () => saveSetting({ autonomy: b.dataset.v }, 'Autonomy: ' + b.textContent); });
-document.querySelectorAll('#setCtx button').forEach((b) => { b.onclick = () => saveSetting({ ctx: +b.dataset.v }, 'Context: ' + b.textContent + ' (applies to models tested from now on)'); });
+document.querySelectorAll('#setCtx button').forEach((b) => { b.onclick = () => { if (+b.dataset.v > 32768 && !confirm(`${b.textContent} context: every step reads more, so runs get slower, and small models lose focus with very long context. Use it only for jobs that need it. Continue?`)) return; toast('Applying ' + b.textContent + ' context…'); saveSetting({ ctx: +b.dataset.v }, 'Context ' + b.textContent + ' applied (models reload on the next run)'); }; });
+$('setKv').onchange = (e) => { toast('Restarting Ollama…'); saveSetting({ kvCache: e.target.checked ? 'q8_0' : 'f16' }, 'Compact cache ' + (e.target.checked ? 'on' : 'off') + ' - Ollama restarted'); };
 // ---- team size, workers on/off, how many at once (with what this PC can hold) ----
 let team = null;
 const wName = (i) => (i === 1 ? 'worker' : 'worker' + i);

@@ -9,6 +9,8 @@ import type { Store } from './store.ts';
 import type { Gateway } from './gateway.ts';
 import { clampWorkers, workerNames } from './team.ts';
 import { PROXY_PORT } from './ollamaproxy.ts';
+import { applyContext } from './context.ts';
+import { createRequire } from 'node:module';
 const run = promisify(execFile);
 
 export type Autonomy = 'full' | 'ask' | 'off';
@@ -24,11 +26,14 @@ export interface Settings {
   thinking: Record<string, Thinking>; lightContext: boolean; runMinutes: number; interpret: boolean;
   learn: boolean;   // learned memory (learn.ts): pick up durable facts from conversations while idle
   review: boolean;  // review gate: finished tasks wait for jr's Approve / Request changes before they count as done
+  kvCache: 'f16' | 'q8_0';   // Ollama's KV cache type: q8_0 halves the cache's memory (flash attention on) at a negligible quality cost
 }
 export const DEFAULTS: Settings = { autonomy: 'ask', workers: ['worker', 'worker2'], workerCount: 2, parallel: 1, ctx: 24576, notify: true, modelKinds: ['abliterated'],
   // main thinks: Qwen3 on Ollama sometimes writes its tool call inside the thinking text; the tool-call rescue proxy
   // (ollamaproxy.ts) turns those into real calls, so thinking runs no longer end with nothing done.
-  thinking: { main: 'low', worker: 'off' }, lightContext: false, runMinutes: 8, interpret: true, learn: true, review: false };
+  thinking: { main: 'low', worker: 'off' }, lightContext: false, runMinutes: 8, interpret: true, learn: true, review: false, kvCache: 'f16' };
+/** Context sizes offered: up to 32k always; 48k and 64k only with the q8_0 cache (and slower: small models lose focus). */
+export const CTX_SIZES = [16384, 24576, 32768, 49152, 65536];
 export const RUN_MINUTES = [4, 8, 12, 20];
 export const thinkingFor = (s: Settings, agent: string): Thinking => s.thinking[agent] ?? (agent === 'main' ? s.thinking.main : s.thinking.worker) ?? 'off';
 const POLICY: Record<Autonomy, { security: string; ask: string; askFallback: string }> = {
@@ -55,7 +60,9 @@ export async function saveSettings(store: Store, gw: Gateway, patch: Partial<Set
   if (patch.workerCount !== undefined && !patch.workers) s.workers = [...new Set([...s.workers, ...all.slice(getSettings(store).workerCount)])];
   s.workers = s.workers.filter((w) => all.includes(w)); if (!s.workers.length) throw new Error('keep at least one worker on');
   s.parallel = Math.max(1, Math.min(s.workerCount, Math.round(Number(s.parallel) || 1)));
-  s.ctx = [16384, 24576, 32768].includes(Number(s.ctx)) ? Number(s.ctx) : 24576;
+  s.kvCache = s.kvCache === 'q8_0' ? 'q8_0' : 'f16';
+  s.ctx = CTX_SIZES.includes(Number(s.ctx)) ? Number(s.ctx) : 24576;
+  if (s.ctx > 32768 && s.kvCache !== 'q8_0') throw new Error('contexts above 32k need the compact (q8_0) cache: switch it on first');
   s.modelKinds = (s.modelKinds || []).filter((k) => ['abliterated', 'standard', 'custom'].includes(k)) as any;
   if (!s.modelKinds.length) throw new Error('tick at least one kind of model');
   s.thinking = { ...getSettings(store).thinking, ...(patch.thinking || {}) };
@@ -68,8 +75,18 @@ export async function saveSettings(store: Store, gw: Gateway, patch: Partial<Set
     await gw.rpc('exec.approvals.set', { file, baseHash: cur.hash });
     log(`autonomy set to ${s.autonomy} (${JSON.stringify(POLICY[s.autonomy])})`);
   }
+  const before = getSettings(store);
   store.set('settings', s);
   if (patch.thinking || patch.lightContext !== undefined || patch.runMinutes !== undefined) await applyAgentOptions(store, gw, log);
+  // compact cache: Ollama's own setting (kept for its autostart too), then a restart so it applies
+  if (patch.kvCache !== undefined && s.kvCache !== before.kvCache) {
+    const pre = createRequire(import.meta.url)('../lib/prereqs.cjs');
+    await pre.setOllamaEnv(s.kvCache === 'q8_0' ? { OLLAMA_KV_CACHE_TYPE: 'q8_0', OLLAMA_FLASH_ATTENTION: '1' } : {}, log);
+    await pre.restartOllama(log);
+    log(`Ollama restarted with the ${s.kvCache === 'q8_0' ? 'compact q8_0' : 'standard f16'} cache`);
+  }
+  // context size: rebuild the team's model copies with it and tell OpenClaw (context.ts)
+  if (patch.ctx !== undefined && s.ctx !== before.ctx) await applyContext(gw, s.ctx, log);
   return s;
 }
 

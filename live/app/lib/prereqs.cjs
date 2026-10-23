@@ -122,6 +122,30 @@ const winget = (id) => async (log) => {
   await refreshPath();
 };
 
+/** Ollama settings Orchestra manages (Settings > context): e.g. { OLLAMA_KV_CACHE_TYPE: 'q8_0', OLLAMA_FLASH_ATTENTION: '1' }.
+ *  Kept in the data folder so the desktop app and the service start Ollama the same way. */
+const ollamaEnvFile = () => path.join(env.ORCHESTRA_ROOT || path.join(HOME, 'Orchestra'), 'orchestra', 'ollama-env.json');
+function ollamaEnv() { try { return JSON.parse(fs.readFileSync(ollamaEnvFile(), 'utf8')); } catch { return {}; } }
+/** Save Ollama's settings: for Orchestra's own starts, and as user environment variables so Ollama's autostart has them too. */
+async function setOllamaEnv(vars, log = () => {}) {
+  fs.mkdirSync(path.dirname(ollamaEnvFile()), { recursive: true });
+  fs.writeFileSync(ollamaEnvFile(), JSON.stringify(vars, null, 1));
+  for (const k of ['OLLAMA_KV_CACHE_TYPE', 'OLLAMA_FLASH_ATTENTION']) {
+    const v = vars[k];
+    if (isWin) await run('reg.exe', v ? ['add', 'HKCU\\Environment', '/v', k, '/t', 'REG_SZ', '/d', String(v), '/f'] : ['delete', 'HKCU\\Environment', '/v', k, '/f']);
+    else if (process.platform === 'darwin') await run('launchctl', v ? ['setenv', k, String(v)] : ['unsetenv', k]);
+    if (v) env[k] = String(v); else delete env[k];
+  }
+  log(`Ollama settings saved: ${Object.entries(vars).map(([k, v]) => `${k}=${v}`).join(', ') || 'defaults'}`);
+}
+/** Restart Ollama so new settings apply (models reload on the next run). */
+async function restartOllama(log = () => {}) {
+  await killByName(isWin ? ['ollama app.exe', 'ollama.exe'] : ['ollama']);
+  for (const p of await pidsOnPort(11434)) await killTree(p);
+  await sleep(1500);
+  await startOllama(log);
+}
+
 /** Start Ollama the way its installer sets it up (tray app), else `ollama serve`; wait until it answers. */
 async function startOllama(log) {
   if (await portOpen(11434)) return;
@@ -130,7 +154,8 @@ async function startOllama(log) {
   log('starting Ollama');
   // Linux: the install script's systemd service normally runs it already; if it is stopped, `ollama serve` as the
   // user (its models then live in ~/.ollama; `sudo systemctl start ollama` uses the service's own model store)
-  const p = app && fs.existsSync(app) ? spawn(app, [], { detached: true, stdio: 'ignore', windowsHide: true }) : spawn(exe, ['serve'], { detached: true, stdio: 'ignore', windowsHide: true });
+  const oenv = { ...env, ...ollamaEnv() };   // Orchestra's Ollama settings (KV cache type, flash attention)
+  const p = app && fs.existsSync(app) ? spawn(app, [], { detached: true, stdio: 'ignore', windowsHide: true, env: oenv }) : spawn(exe, ['serve'], { detached: true, stdio: 'ignore', windowsHide: true, env: oenv });
   p.on('error', () => {}); p.unref();
   if (!(await waitPort(11434, 30))) throw new Error('Ollama did not answer within 30 seconds');
 }
@@ -301,4 +326,4 @@ async function stopAll(log = () => {}) {
 /** For JSON (the Setup page): everything but the fix functions. */
 const plain = (items) => items.map(({ fix, ...rest }) => rest);
 
-module.exports = { check, startServices, startOllama, startGateway, stopAll, openclaw, plain, refreshPath, nodeOk };
+module.exports = { check, startServices, startOllama, restartOllama, ollamaEnv, setOllamaEnv, startGateway, stopAll, openclaw, plain, refreshPath, nodeOk };
