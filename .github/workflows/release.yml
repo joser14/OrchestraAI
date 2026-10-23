@@ -60,6 +60,9 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          # no certificate: remove the empty signing variables (on a Mac an empty CSC_LINK is read as the build
+          # folder and stops the build: "desktop not a file", found with mac-check.yml)
+          if [ -z "$CSC_LINK" ]; then unset CSC_LINK CSC_KEY_PASSWORD; fi
           npx electron-builder ${{ matrix.target }} --config electron-builder.yml --publish always 2>&1 | tee build.log || {
             grep -iE "⨯|error|cannot|failed|not found|ENOENT" build.log | tail -25 | while IFS= read -r l; do echo "::error::${l//%/%25}"; done
             exit 1; }

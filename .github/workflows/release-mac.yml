@@ -1,0 +1,43 @@
+# Add the Mac installer to an existing release (the version in live/app/desktop/package.json), e.g. when only the
+# Mac job of release.yml failed. Push the commit to the ci/release-mac branch:
+#   git push origin HEAD:refs/heads/ci/release-mac
+# electron-builder uploads to an existing published release only in its first two hours.
+name: Release Mac installer
+
+on:
+  push:
+    branches: ['ci/release-mac']
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Service dependencies
+        working-directory: live/app
+        run: npm ci
+      - name: Build the team plugin
+        working-directory: live/app/plugin
+        run: |
+          npm ci
+          npm run build
+      - name: Desktop dependencies
+        working-directory: live/app/desktop
+        run: npm ci
+      - name: Build and publish the Mac installer
+        working-directory: live/app/desktop
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'   # unsigned: no Apple identity on the runner
+        run: |
+          set -o pipefail
+          npx electron-builder --mac dmg --config electron-builder.yml --publish always 2>&1 | tee build.log || {
+            grep -iE "⨯|error|cannot|failed|not found|ENOENT" build.log | tail -25 | while IFS= read -r l; do echo "::error::${l//%/%25}"; done
+            exit 1; }
