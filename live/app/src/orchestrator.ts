@@ -14,7 +14,7 @@ import { applyPosts, autoDone, shouldRenumber, parseCommands, minuteOf, COMMANDE
 import { lastAssistantText } from './transcripts.ts';
 import { KeepAwake } from './health.ts';
 import { getSettings } from './settings.ts';
-import { needsInterpret, conversationBefore, folderSnapshot, buildPrompt, parseInterpretation, callModel, type Interpretation } from './interpret.ts';
+import { verifyFiles, needsInterpret, conversationBefore, folderSnapshot, buildPrompt, parseInterpretation, callModel, type Interpretation } from './interpret.ts';
 const run = promisify(execFile);
 
 export class Orchestrator {
@@ -99,7 +99,20 @@ export class Orchestrator {
       this.post('system', r.to, `DONE ${r.task.id} not accepted: ${r.missing.join(', ')} is missing or empty. Create it with the write tool, then post DONE ${r.task.id} again.`);
       this.log(`task ${r.task.id}: DONE from ${r.to} rejected, missing/empty: ${r.missing.join(', ')}`);
     }
-    for (const t of autoDone(tasks, this.cfg.workDir, this.stat, now)) this.log(`task ${t.id} done (auto: all its files exist)`);
+    // Check finished work against the folders as they are (interpret.ts verifyFiles). A failed check reopens the
+    // task once with the exact problem for the worker, instead of waiting for the brain to notice it. A reopened
+    // task is not auto-closed by its files existing (its confirmation file is already there): only by a new DONE.
+    const reopened = new Set(this.store.get<string[]>('verifyReopened', []));
+    const autoClosed = autoDone(tasks.filter((t) => !reopened.has(`${t.id}|${t.created}`)), this.cfg.workDir, this.stat, now);
+    for (const t of autoClosed) this.log(`task ${t.id} done (auto: all its files exist)`);
+    for (const t of [...fx.done, ...autoClosed]) {
+      const key = `${t.id}|${t.created}`; if (reopened.has(key)) continue;
+      const v = verifyFiles(t.text, this.cfg.workDir); if (!v.problems.length) continue;
+      reopened.add(key); t.status = 'open'; t.updated = now.toISOString();
+      this.post('system', t.assignee, `${t.id} is not done yet - Orchestra checked the files: ${v.problems.join('; ')}. Fix exactly this (PowerShell on Windows: e.g. Remove-Item 'folder\\*.tmp'), list the folder to confirm, then team_done ${t.id} again.`);
+      this.log(`task ${t.id}: check failed after DONE (${v.problems.join('; ').slice(0, 160)}) - reopened for ${t.assignee}`);
+    }
+    this.store.set('verifyReopened', [...reopened].slice(-200));
     this.store.saveTasks(tasks);
     for (const w of new Set(fx.cancelled.map((t) => t.assignee))) {
       if (this.running(w) && !tasks.some((t) => t.assignee === w && t.status === 'open')) { await this.stopAgent(w); this.log(`stopped ${w}: its task was cancelled`); }
