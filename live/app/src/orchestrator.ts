@@ -331,8 +331,10 @@ export class Orchestrator {
   }
   /** A fast-path task passed its check: tell jr the result directly (what the worker said, and the files). */
   private reportFast(t: Task, posts: Post[]) {
-    const done = [...posts].reverse().find((p) => p.from === t.assignee && new RegExp(`DONE\\s+${t.id}\\b`, 'i').test(p.body));
-    const note = done ? done.body.replace(/^\s*DONE\s+T\d+\s*/i, '').trim() : '';
+    // only this task's posts: ids restart after an archive, so an older "DONE T3" can still be on the board
+    const since = minuteOf(t.created), mine = [...posts].reverse().filter((p) => p.from === t.assignee && p.ts >= since && new RegExp(`\\b${t.id}\\b`).test(p.body));
+    const done = mine.find((p) => !/^\s*DONE\s+T\d+\s*:?\s*(Created|Wrote|Saved)?\s*\S+\.\w+\s*$/i.test(p.body) && !/^\s*Starting\b/i.test(p.body)) || mine[0];
+    const note = done ? done.body.replace(/^\s*DONE\s+T\d+\s*:?\s*/i, '').trim() : '';
     const files = expectedFiles(t.text, this.cfg.workDir).filter((f) => this.stat(f).exists);
     const cost = this.store.get<Record<string, any>>('taskCosts', {})[`${t.id}|${t.created}`];
     this.post('main-fast', 'jr', `Done (${t.id}, ${t.assignee}${cost ? `, ${cost.secs} s` : ''}): ${note.slice(0, 400) || 'finished.'}${files.length ? `\nFiles: ${files.join(', ')}` : ''}`);

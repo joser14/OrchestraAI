@@ -452,6 +452,13 @@
   .mini-lbl { font-size: 11px; color: var(--muted); margin-top: 4px; }
   .tip { position: fixed; pointer-events: none; z-index: 20; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 12px; box-shadow: var(--shadow); color: var(--text); white-space: nowrap; }
   .tip i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+  .stor-drive { display: grid; grid-template-columns: 40px 1fr 150px; gap: 10px; align-items: center; margin: 6px 0; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .stor-drive > span:last-child { text-align: right; }
+  #stParts td small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .stor-bar { height: 12px; background: var(--border); position: relative; overflow: hidden; }
+  .stor-bar > i { position: absolute; inset: 0 auto 0 0; background: var(--main); }
+  .stor-bar > i.low { background: var(--bad); }
+  .stor-bar > b { position: absolute; top: 0; bottom: 0; background: var(--jr); opacity: .85; }
   .mtable { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 12px; }
   .mtable th, .mtable td { text-align: right; padding: 5px 6px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
   .mtable th:first-child, .mtable td:first-child { text-align: left; } .mtable th { color: var(--muted); font-weight: 600; font-size: 11px; }
@@ -921,6 +928,9 @@
         <div class="mini-lbl">Temperature °C</div><div class="chart small" id="cTemp"></div>
         <div class="mini-lbl">VRAM used GB</div><div class="chart small" id="cVram"></div></section>
     </div>
+    <section class="panel pad"><h2 style="display:flex;align-items:center;gap:10px">Storage <span class="sub" id="stAt">drives on this PC, and what Orchestra takes</span> <button type="button" class="ghost" id="stFresh" style="margin-left:auto">Measure again</button></h2>
+      <div id="stDrives"></div>
+      <table class="mtable" id="stParts"></table></section>
   </div>
 
   <!-- LIVE -->
@@ -1632,7 +1642,7 @@ function showTab(name) {
   if (window.detailsShow) window.detailsShow(name === 'details');
   if (name === 'board') loadTalkStats();
   if (name === 'settings') loadSettings();
-  if (name === 'metrics') setTimeout(loadMetrics, 0);   // after the pane is visible, so charts can measure their width
+  if (name === 'metrics') { setTimeout(loadMetrics, 0); loadStorage(); }   // after the pane is visible, so charts can measure their width
   logsShow(name === 'logs');
   document.querySelectorAll('.tabpane').forEach((p) => p.classList.toggle('on', p.id === 'tab-' + name));
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
@@ -1995,6 +2005,25 @@ async function loadMetrics() {
   $('mGpuLbl').textContent = metricsRange === '1h' || metricsRange === '6h' ? 'one sample per minute' : 'hourly averages';
   lineChart($('cUtil'), m.gpu, 'util', '% busy', 100); lineChart($('cTemp'), m.gpu, 'temp', '°C', 100); lineChart($('cVram'), m.gpu, 'used', 'GB', m.gpu.length ? m.gpu[0].total : 8192);
 }
+// ---- metrics: storage (drives, and Orchestra's own folders; sizes re-measured every 5 min at most) ----
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const gbs = (b) => b >= 2 ** 30 ? (b / 2 ** 30).toFixed(1) + ' GB' : b >= 2 ** 20 ? Math.round(b / 2 ** 20) + ' MB' : Math.round(b / 1024) + ' KB';
+async function loadStorage(fresh) {
+  const s = await fetch('/api/storage' + (fresh ? '?fresh=1' : '')).then((r) => r.json()).catch(() => null); if (!s) return;
+  const mine = {}; for (const p of s.parts || []) mine[p.drive] = (mine[p.drive] || 0) + p.bytes;
+  $('stDrives').innerHTML = (s.drives || []).map((d) => {
+    const used = d.totalGB - d.freeGB, pct = d.totalGB ? 100 * used / d.totalGB : 0, orch = (mine[d.drive] || 0) / 2 ** 30, opct = d.totalGB ? 100 * orch / d.totalGB : 0;
+    return `<div class="stor-drive" title="${esc(d.drive)}: ${used.toFixed(0)} of ${d.totalGB.toFixed(0)} GB used${orch ? `, Orchestra ${orch.toFixed(1)} GB` : ''}"><b>${esc(d.drive)}</b>
+      <div class="stor-bar"><i class="${d.freeGB < 20 ? 'low' : ''}" style="width:${pct.toFixed(1)}%"></i>${orch ? `<b style="left:${Math.max(0, pct - opct).toFixed(1)}%;width:${Math.max(0.6, opct).toFixed(1)}%"></b>` : ''}</div>
+      <span>${d.freeGB.toFixed(0)} GB free of ${d.totalGB.toFixed(0)}${d.freeGB < 20 ? ' · low' : ''}</span></div>`;
+  }).join('') + '<div class="mini-lbl">Light segment = Orchestra\'s share of the drive.</div>';
+  const tot = (s.parts || []).reduce((a, p) => a + p.bytes, 0);
+  $('stParts').innerHTML = '<tr><th>Orchestra</th><th>Drive</th><th>Size</th></tr>' + (s.parts || []).map((p) =>
+    `<tr title="${esc(p.path)}"><td>${esc(p.name)}<small>${esc(p.about)}</small></td><td>${esc(p.drive)}</td><td>${gbs(p.bytes)}</td></tr>`).join('')
+    + `<tr><td><b>Total</b></td><td></td><td><b>${gbs(tot)}</b></td></tr>`;
+  $('stAt').textContent = 'measured ' + new Date(s.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+$('stFresh').onclick = () => { $('stAt').textContent = 'measuring…'; loadStorage(true); };
 document.querySelectorAll('#mRange button').forEach((b) => { b.onclick = () => { metricsRange = b.dataset.r; try { localStorage.setItem('mRange', metricsRange); } catch {} loadMetrics(); }; });
 setInterval(() => { if ($('tab-metrics').classList.contains('on')) loadMetrics(); }, 30000);
 window.addEventListener('resize', () => { if ($('tab-metrics').classList.contains('on')) loadMetrics(); });

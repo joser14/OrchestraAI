@@ -51,6 +51,9 @@ export async function judgeSimple(model: string, text: string, timeoutMs = 30000
 /** The worker's job: jr's words, plus a file to write when jr named none (so the result can be checked). */
 export function fastTaskText(text: string, workDir: string): string {
   let job = String(text || '').trim().replace(/\s+/g, ' ');
+  // a bare file name ("to autumn-haiku.md") means that file in the work folder: spell out the full path
+  const bare = /(?:^|[\s"'`(])([\w][\w.-]*\.(?:md|txt|csv|json|html|py|js|pdf))(?=$|[\s"'`),.;:!?])/i.exec(job);
+  if (!workPaths(job, workDir).length && bare && !/[\\/]/.test(bare[1])) job = job.replace(bare[1], join(workDir, bare[1].replace(/\.pdf$/i, '.md')));
   if (!workPaths(job, workDir).length) {
     const slug = job.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter((w) => w.length > 2 && !/^(the|and|for|with|about|please|write|make|create|me|some|that|this)$/.test(w)).slice(0, 4).join('-') || 'result';
     job += ` Save the result as ${join(workDir, `${slug}.md`)}`;

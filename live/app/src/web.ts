@@ -162,6 +162,46 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
     if (tel.hist.length > 300) tel.hist.shift();
   }
   setInterval(() => { sampleTelemetry().catch(() => {}); }, 3000);
+  // storage (Metrics > Storage): the PC's drives, and the size of what Orchestra keeps
+  const store = { at: 0, busy: null as Promise<void> | null, parts: [] as { name: string; about: string; path: string; bytes: number; drive: string }[] };
+  const driveOf = (p: string) => (process.platform === 'win32' ? resolve(p).slice(0, 2).toUpperCase() : '/');
+  function drives() {
+    const roots = process.platform === 'win32' ? 'CDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((l) => `${l}:\\`).filter((r) => existsSync(r)) : ['/', homedir()];
+    const seen = new Set<string>(), out: { drive: string; totalGB: number; usedGB: number; freeGB: number }[] = [];
+    for (const r of roots) {
+      try { const s = statfsSync(r); const GB = 2 ** 30, total = s.blocks * s.bsize / GB; if (!total) continue;
+        const key = `${s.blocks}:${s.bfree}`; if (seen.has(key)) continue; seen.add(key);   // the same filesystem twice (Linux / and home)
+        out.push({ drive: r.replace(/\\$/, ''), totalGB: +total.toFixed(1), freeGB: +(s.bavail * s.bsize / GB).toFixed(1), usedGB: +((s.blocks - s.bfree) * s.bsize / GB).toFixed(1) }); } catch {}
+    }
+    return out;
+  }
+  /** Bytes under a folder (walked without blocking the service; capped at 200k entries). */
+  async function folderBytes(dir: string): Promise<number> {
+    const { readdir, stat } = await import('node:fs/promises');
+    let total = 0, n = 0; const stack = [dir];
+    while (stack.length && n < 200000) {
+      const d = stack.pop()!; let es: any[] = []; try { es = await readdir(d, { withFileTypes: true }); } catch { continue; }
+      for (const e of es) { n++; const f = join(d, e.name); if (e.isDirectory()) stack.push(f); else if (e.isFile()) { try { total += (await stat(f)).size; } catch {} } }
+    }
+    return total;
+  }
+  async function measureStorage() {
+    const modelsDir = process.env.OLLAMA_MODELS || join(homedir(), '.ollama', 'models');
+    const known = [
+      { name: 'AI models', about: 'Ollama model files (the biggest part: remove unused ones on the Models page)', path: modelsDir },
+      { name: 'Work files', about: 'what the team made for you', path: cfg.workDir },
+      { name: 'Inbox', about: 'files you gave the team', path: join(cfg.root, 'inbox') },
+      { name: 'Logs', about: 'service and agent logs (trimmed automatically)', path: cfg.logDir },
+      { name: 'Backups', about: 'saved copies of work and settings', path: join(cfg.root, 'backups') },
+      { name: 'OpenClaw', about: "the agent engine's sessions, transcripts and settings", path: process.env.OPENCLAW_STATE_DIR || join(homedir(), '.openclaw') },
+    ].filter((p, i, a) => p.path && existsSync(p.path) && a.findIndex((x) => resolve(x.path) === resolve(p.path)) === i);
+    const parts = [];
+    for (const p of known) parts.push({ ...p, bytes: await folderBytes(p.path), drive: driveOf(p.path) });
+    // everything else in Orchestra's data folder (its database, memory, skills, tools)
+    const inRoot = parts.filter((p) => resolve(p.path).toLowerCase().startsWith(resolve(cfg.root).toLowerCase())).reduce((a, p) => a + p.bytes, 0);
+    parts.push({ name: 'Orchestra data', about: 'its database, memory, skills and tools', path: cfg.root, bytes: Math.max(0, await folderBytes(cfg.root) - inRoot), drive: driveOf(cfg.root) });
+    store.parts = parts.sort((a, b) => b.bytes - a.bytes); store.at = Date.now();
+  }
   let tagsCache = { at: 0, count: 0, sizes: {} as Record<string, number> };
   async function ollamaTags() {
     if (Date.now() - tagsCache.at < 60000) return tagsCache;
@@ -340,6 +380,12 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
         at: now,
         ...(q.get('hist') ? { hist: tel.hist } : {}),   // the last 15 min, so a freshly opened page has full charts
       };
+    },
+    // Metrics > Storage: every drive (used / free) and what Orchestra itself takes: the models, its data folders and
+    // OpenClaw's state. Folder sizes are walked in the background and cached for 5 min (?fresh=1 re-measures).
+    '/api/storage': async (q) => {
+      if (q.get('fresh') || !store.at || Date.now() - store.at > 5 * 60000) { if (!store.busy) store.busy = measureStorage().finally(() => { store.busy = null; }); await store.busy; }
+      return { drives: drives(), parts: store.parts, at: store.at };
     },
     // Tools page: OpenClaw's tool groups and which agent has each (from the agents' jobs), MCP servers with their
     // tools (from the last test), OpenClaw skills (?skills=1, slower) and the user's own command tools.

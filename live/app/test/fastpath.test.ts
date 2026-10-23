@@ -25,4 +25,7 @@ test('the worker job names a file to write when jr did not, and asks for a PDF w
   assert.match(t, /Save the result as C:\\w\\limerick-cats-pdf\.md|Save the result as C:\\w\\[\w-]+\.md/);
   assert.match(t, /then make it a PDF with team_pdf$/);
   assert.equal(fastTaskText('Write a poem to C:\\w\\poem.md', 'C:\\w'), 'Write a poem to C:\\w\\poem.md');
+  // a bare file name is that file in the work folder (seen live: the worker wrote a made-up name instead)
+  assert.equal(fastTaskText('Write a short haiku about autumn leaves to autumn-haiku.md in the work folder.', 'C:\\w'),
+    'Write a short haiku about autumn leaves to C:\\w\\autumn-haiku.md in the work folder.');
 });
