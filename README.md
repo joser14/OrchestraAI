@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="logo.webp" width="200" alt="GHOSTSHIELD LABS">
+  <br><b>GHOSTSHIELD LABS</b>
+</p>
+
 # Orchestra
 
 Your own AI team, running privately on your computer. You ask for something; a **composer** plans it, **workers**
