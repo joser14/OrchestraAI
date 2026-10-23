@@ -450,7 +450,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
   const postRoutes: Record<string, (b: any) => Promise<any> | any> = {
     '/api/settings': async (b) => {
       const patch: any = {};
-      for (const k of ['autonomy', 'workers', 'workerCount', 'parallel', 'ctx', 'notify', 'modelKinds', 'thinking', 'lightContext', 'runMinutes', 'interpret', 'learn']) if (b[k] !== undefined) patch[k] = b[k];
+      for (const k of ['autonomy', 'workers', 'workerCount', 'parallel', 'ctx', 'notify', 'modelKinds', 'thinking', 'lightContext', 'runMinutes', 'interpret', 'learn', 'review']) if (b[k] !== undefined) patch[k] = b[k];
       const before = cfg.workers.length;
       const s = await saveSettings(o.store, o.gw, patch, (m) => o.log(m));
       let note = '';
@@ -600,6 +600,18 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
       if (/-board$/.test(String(j.name || ''))) throw new Error('Orchestra starts its own agents: use Wake composer, or post a request');
       await o.gw.runJob(j.id); act(`schedule ${j.name}: run now`);
       return { ok: true, msg: `${j.name} started.` };
+    },
+    // Review gate: jr approves a finished task (it becomes done and main reports it) or sends it back with a comment
+    '/api/tasks/review': (b) => {
+      const tasks = o.store.tasks(); const t = tasks.find((x) => x.id === String(b.id || '')); if (!t) throw new Error('no such task');
+      if ((t.status as string) !== 'review') throw new Error(`${t.id} is not waiting for review`);
+      const now = new Date().toISOString();
+      if (b.approve) { t.status = 'done'; t.updated = now; o.store.saveTasks(tasks); act(`review: approved ${t.id}`); o.log(`task ${t.id}: approved by jr`); opts.soon(); return { ok: true, msg: `${t.id} approved.` }; }
+      const comment = String(b.comment || '').trim(); if (comment.length < 3) throw new Error('say what to change');
+      t.status = 'open'; t.updated = now; o.store.saveTasks(tasks);
+      o.store.addPost('jr', t.assignee, `Changes needed on ${t.id}: ${comment}\nFix exactly this, then team_done ${t.id} again.`, { source: 'review' });
+      act(`review: changes requested on ${t.id}`); o.log(`task ${t.id}: jr requested changes - back to ${t.assignee}`); opts.soon();
+      return { ok: true, msg: `${t.id} sent back to ${t.assignee}.` };
     },
     '/api/recipes/save': (b) => {
       const name = String(b.name || '').trim().slice(0, 60), template = String(b.template || '').trim().slice(0, 2000);

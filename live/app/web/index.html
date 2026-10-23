@@ -243,6 +243,7 @@
   .kb-top { display: flex; align-items: baseline; gap: 8px; font-size: 12px; } .kb-when { margin-left: auto; font-size: 11px; }
   .kb-text { font-size: 13px; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
   .kb-meta { font-size: 11.5px; } .kb-empty { text-align: center; padding: 10px 0; }
+  .kb-review .kb-head { color: #b07cff; } .kb-review .kb-card { border-color: rgba(176, 124, 255, .55); } .kb-actions { display: flex; gap: 6px; margin-top: 4px; }
   @media (max-width: 900px) { .kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 560px) { .kanban { grid-template-columns: 1fr; } }
   /* Memory page: file list + editor */
@@ -1093,6 +1094,8 @@
       <h2>OpenClaw <span class="sub">how each agent runs; saved straight into its OpenClaw job</span></h2>
       <div class="set-row"><div class="lbl"><b>Interpret requests</b><div class="sub">before main plans, one quick extra step rewrites your latest message as one clear instruction ("you missed one" &rarr; what exactly to fix). Adds about 5&ndash;15 s, only when there is a conversation to read.</div></div>
         <input type="checkbox" class="switch" id="setInterpret"></div>
+      <div class="set-row"><div class="lbl"><b>Review before done</b><div class="sub">finished tasks wait in a Review column on the Tasks page for your Approve or Request changes; the composer reports only approved work</div></div>
+        <input type="checkbox" class="switch" id="setReview"></div>
       <div class="set-row"><div class="lbl"><b>Learn from conversations</b><div class="sub">after the team answers you and is idle, keep lasting preferences, facts and what worked in memory/learned.md (Memory page); agents get the most relevant entries</div></div>
         <input type="checkbox" class="switch" id="setLearn"></div>
       <div class="set-row"><div class="lbl"><b>Thinking</b><div class="sub">lets a model reason before it answers: better decisions, slower runs. Qwen3 models on Ollama only switch it on or off (low / medium / high act the same). They sometimes write a tool call inside their thinking instead of making it; Orchestra routes OpenClaw's model traffic through its own proxy, which turns those back into real calls (the Activity log says when it does) and measures the live speed for the Dashboard.</div></div></div>
@@ -1499,7 +1502,8 @@ async function loadTasks() {
     const ag = await fetch('/api/agents').then((x) => x.json()).catch(() => null);
     const busy = new Set(((ag && ag.agents) || []).filter((a) => a.running).map((a) => a.agent));
     const cols = [['Queued', tasks.filter((t) => t.status === 'open' && !busy.has(t.assignee))], ['Working', tasks.filter((t) => t.status === 'open' && busy.has(t.assignee))],
-      ['Stuck', tasks.filter((t) => t.status === 'stuck')], ['Done', tasks.filter((t) => t.status === 'done').slice(0, 12)]];
+      ['Stuck', tasks.filter((t) => t.status === 'stuck')], ...(tasks.some((t) => t.status === 'review') || (settings && settings.review) ? [['Review', tasks.filter((t) => t.status === 'review')]] : []),
+      ['Done', tasks.filter((t) => t.status === 'done').slice(0, 12)]];
     const dur = (s) => (s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.round((s % 3600) / 60)}m` : s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`);
     const board = el('div', 'kanban');
     for (const [name, list] of cols) {
@@ -1510,6 +1514,12 @@ async function loadTasks() {
         c.append(top, el('div', 'kb-text', t.text));
         const meta = t.cost ? `${dur(t.cost.secs)} · ${kfmtD(t.cost.tokOut)} tokens · ${t.cost.runs} run${t.cost.runs === 1 ? '' : 's'}` : t.attempts > 1 ? `try ${t.attempts}` : '';
         if (meta) c.append(el('div', 'sub kb-meta', meta));
+        if (t.status === 'review') {   // review gate: approve, or send back with what to change
+          const row = el('div', 'kb-actions'); const ok = el('button', 'small', 'Approve'); ok.type = 'button'; const no = el('button', 'small ghost', 'Request changes'); no.type = 'button';
+          ok.onclick = async () => { try { toast((await postJSON('/api/tasks/review', { id: t.id, approve: true })).msg); } catch (e) { toast(e.message, true); } loadTasks(); };
+          no.onclick = async () => { const comment = prompt(`What should ${t.assignee} change on ${t.id}?`); if (!comment) return; try { toast((await postJSON('/api/tasks/review', { id: t.id, approve: false, comment })).msg); } catch (e) { toast(e.message, true); } loadTasks(); };
+          row.append(ok, no); c.append(row);
+        }
         col.append(c);
       }
       if (!list.length) col.append(el('div', 'sub kb-empty', '—'));
@@ -2413,6 +2423,7 @@ function renderOpenClaw() {
   const s = settings; if (!s) return;
   $('setInterpret').checked = s.interpret !== false;
   $('setLearn').checked = s.learn !== false;
+  $('setReview').checked = !!s.review;
   $('setLight').checked = !!s.lightContext;
   document.querySelectorAll('#setRun button').forEach((b) => b.classList.toggle('on', +b.dataset.v === (s.runMinutes || 8)));
   const oc = s.openclaw || {};
@@ -2439,6 +2450,7 @@ function setLook(v) {
 document.querySelectorAll('#setLook button').forEach((b) => { b.onclick = () => { setLook(b.dataset.v); toast('Look: ' + b.textContent); }; });
 setLook(document.documentElement.dataset.look === '8bit' ? '8bit' : 'classic');
 $('setNotify').onchange =(e) => saveSetting({ notify: e.target.checked }, 'Desktop notifications ' + (e.target.checked ? 'on' : 'off'));
+$('setReview').onchange = (e) => saveSetting({ review: e.target.checked }, 'Review before done ' + (e.target.checked ? 'on' : 'off'));
 $('setLearn').onchange = (e) => saveSetting({ learn: e.target.checked }, 'Learn from conversations ' + (e.target.checked ? 'on' : 'off'));
 $('setInterpret').onchange = (e) => saveSetting({ interpret: e.target.checked }, 'Interpret requests ' + (e.target.checked ? 'on' : 'off'));
 $('setLight').onchange = (e) => saveSetting({ lightContext: e.target.checked }, 'Light context ' + (e.target.checked ? 'on' : 'off')).then(loadSettings);

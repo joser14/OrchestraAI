@@ -70,7 +70,7 @@ export function startApi(o: Orchestrator, onPost: () => void) {
       // Guardrails for small models (seen: one request assigned six times, jobs without a file to check).
       if (!workPaths(job, o.cfg.workDir).length)
         throw new Error(`name the file the worker must write, e.g. "... saved as ${join(o.cfg.workDir, 'planets.md')}" (add "then make it a PDF with team_pdf" for a PDF). Then call team_assign again.`);
-      const open = o.store.tasks().filter((t) => t.status === 'open');
+      const open = o.store.tasks().filter((t) => t.status === 'open' || (t.status as string) === 'review');   // in review = still in progress
       // Same wording is only a repeat when it also writes the same files (seen: "delete the .tmp files in junk3"
       // refused as a repeat of the finished junk2 job; the folder and the confirmation file were different).
       const mine = workPaths(job, o.cfg.workDir).map((p) => p.toLowerCase());

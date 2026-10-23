@@ -117,7 +117,16 @@ export class Orchestrator {
     for (const t of [...fx.done, ...autoClosed]) {
       const key = `${t.id}|${t.created}`;
       const v = reopened.has(key) ? { problems: [] as string[] } : verifyFiles(t.text, this.cfg.workDir);
-      if (!v.problems.length) { this.taskCost(t, now); continue; }
+      if (!v.problems.length) {
+        this.taskCost(t, now);
+        // review gate (Settings, off by default): passed the check, now waits for jr's Approve / Request changes
+        if (getSettings(this.store).review && t.by !== 'automation') {
+          t.status = 'review' as any; t.updated = now.toISOString();
+          this.post('system', 'jr', `${t.id} is ready for your review (${t.assignee}): ${t.text.slice(0, 160)}${t.text.length > 160 ? '…' : ''}\nApprove it or request changes on the Tasks page.`);
+          this.log(`task ${t.id}: passed the check, waiting for jr's review`);
+        }
+        continue;
+      }
       reopened.add(key); t.status = 'open'; t.updated = now.toISOString();
       this.post('system', t.assignee, `${t.id} is not done yet - Orchestra checked the files: ${v.problems.join('; ')}. Fix exactly this (PowerShell on Windows: e.g. Remove-Item 'folder\\*.tmp'), list the folder to confirm, then team_done ${t.id} again.`);
       this.log(`task ${t.id}: check failed after DONE (${v.problems.join('; ').slice(0, 160)}) - reopened for ${t.assignee}`);

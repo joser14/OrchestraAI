@@ -190,8 +190,8 @@ function mainAgenda(o: Orchestrator): string {
   // ---- context ----
   const live = ledger.filter((r) => r.state !== 'reported');
   if (live.length) L.push('', "=== JR'S REQUESTS (progress) ===", ...live.map((r) => `  ${r.post.ts} "${one(r.post.body, 120)}": ${r.tasks.map((t) => `${t.id} ${t.status}`).join(', ')} -> ${r.state === 'complete' ? 'ALL DONE: report it to jr' : r.state}`));
-  const inflight = tasks.filter((t) => t.status === 'open');
-  L.push('', '=== IN PROGRESS (already assigned: never assign these again) ===', ...(inflight.length ? inflight.map((t) => `  ${t.id} ${t.assignee}${o.running(t.assignee) ? ' (working now)' : ''}: ${one(t.text, 220)}`) : ['  none']));
+  const inflight = tasks.filter((t) => t.status === 'open' || (t.status as string) === 'review');
+  L.push('', '=== IN PROGRESS (already assigned: never assign these again) ===', ...(inflight.length ? inflight.map((t) => `  ${t.id} ${t.assignee}${(t.status as string) === 'review' ? ' (finished, waiting for jr to review - do not report or redo it)' : o.running(t.assignee) ? ' (working now)' : ''}: ${one(t.text, 220)}`) : ['  none']));
   const done = recentDone(o).slice(0, 6);
   L.push('', '=== FINISHED LATELY (do not redo; if jr asks again, point to the file) ===', ...(done.length ? done.map((t) => `  ${t.id} ${clock(t.updated)} ${t.assignee}: ${one(t.text, 160)}${filesOf(o, t).length ? ` -> ${filesOf(o, t).join(', ')}` : ''}`) : ['  none']));
   const fyi = after.filter((p) => o.cfg.workers.includes(p.from) && !needsMain(p)).slice(-4);
