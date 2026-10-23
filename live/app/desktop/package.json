@@ -1,0 +1,20 @@
+{
+  "name": "orchestra-desktop",
+  "productName": "Orchestra",
+  "version": "0.2.0",
+  "description": "Orchestra: a local AI team (brain + workers) on OpenClaw and Ollama",
+  "main": "main.cjs",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3"
+  },
+  "allowScripts": {
+    "electron@44.7.0": true,
+    "electron-winstaller@5.4.0": true
+  }
+}

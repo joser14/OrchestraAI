@@ -1,0 +1,61 @@
+# Orchestra desktop installer (phase 4). Windows first: NSIS per-user installer, start menu + desktop shortcut,
+# optional start at login. The Orchestra service (src/, web/, lib/, plugin/) ships as an extra resource and runs
+# inside Electron's own Node 24 (utilityProcess), so the user does not need Node.js installed for Orchestra itself.
+appId: ai.orchestra.desktop
+productName: Orchestra
+copyright: Copyright © 2026 Orchestra
+directories:
+  output: dist   # Orchestra.cmd -build copies the installer to E:\Orchestra\installer
+  buildResources: assets
+files:
+  - main.cjs
+  - setup.html
+  - assets/**
+extraResources:
+  - from: ../src
+    to: orchestra/src
+  - from: ../web
+    to: orchestra/web
+  - from: ../lib
+    to: orchestra/lib
+  - from: ../plugin
+    to: orchestra/plugin
+    filter: ["dist/**", "openclaw.plugin.json", "package.json", "README.md"]
+  - from: ../package.json
+    to: orchestra/package.json
+  # Runtime dependencies (no npm install on the target PC): koffi FFI for the service, typebox for the plugin.
+  - from: ../node_modules/koffi
+    to: orchestra/node_modules/koffi
+  - from: ../node_modules/@koromix
+    to: orchestra/node_modules/@koromix
+  - from: ../plugin/node_modules/typebox
+    to: orchestra/plugin/node_modules/typebox
+win:
+  target: [nsis]
+  icon: assets/icon.ico
+  # Code signing: set CSC_LINK / CSC_KEY_PASSWORD to a code-signing certificate before a public release.
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always   # also recreated when installing over an older version
+  menuCategory: false
+  createStartMenuShortcut: true
+  shortcutName: Orchestra
+  installerIcon: assets/icon.ico
+  uninstallerIcon: assets/icon.ico
+  runAfterFinish: true
+# macOS (Apple silicon and Intel) and Linux (x64 workstations and ARM64 boxes such as the NVIDIA DGX Spark / GB10).
+# Build each on its own OS: electron-builder makes .dmg only on a Mac, and .deb needs Linux tooling.
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  category: public.app-category.productivity
+linux:
+  target:
+    - target: AppImage
+      arch: [x64, arm64]
+    - target: deb
+      arch: [x64, arm64]
+  category: Utility

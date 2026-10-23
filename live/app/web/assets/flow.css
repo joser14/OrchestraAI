@@ -1,0 +1,243 @@
+/* Flow: the team as an IT orchestra, hacker style, red on black. Each tier is a part of the scene flow.js draws in
+   #flowWires - you as a floating hooded face, the composer (main) as a wireframe heat-map brain, the agents (workers) as smaller brains in an
+   arc, the output rack - over a faint code rain. The agents' cards sit in a column on the left at their tier's height,
+   joined to their place by leader lines. While work moves, packets run from you to the composer, from its baton to each PC, and on to the rack.
+   Sized to fit one 1920x1080 screen next to the side panels. */
+:root {
+  --f-you: #ffb3a8; --f-main: #ff2d3d; --f-worker: #ff7a6b; --f-worker2: #ff4f8b; --f-out: #ff9a4d; --f-pyr: #e0182b;
+  --f-w1: var(--f-worker); --f-w2: var(--f-worker2); --f-w3: #ffd0c8; --f-w4: #c2185b; --f-w5: #ff5c39; --f-w6: #f78fb3; --f-w7: #d4313f; --f-w8: #ffb26b;
+  --f-bg: #030202; --f-card: rgba(18, 9, 10, .9); --f-ink: #f6ecec; --f-dim: #a68a8d; --f-line: rgba(255, 45, 61, .06);
+  --f-metal: #1b1012; --f-metal2: #2a181b; --f-wood: #5a1418;
+}
+:root[data-theme="light"] {
+  --f-you: #b0413a; --f-main: #c8102e; --f-worker: #d9452f; --f-worker2: #b5124f; --f-out: #c25a12; --f-pyr: #b30f22;
+  --f-w3: #8a2c22; --f-w4: #9c1050; --f-w5: #e0451f; --f-w6: #c2557e; --f-w7: #7d0f1c; --f-w8: #b8681a;
+  --f-bg: #fbf3f3; --f-card: rgba(255, 255, 255, .94); --f-ink: #1a0d0f; --f-dim: #7a5c60; --f-line: rgba(200, 16, 46, .07);
+  --f-metal: #2a1a1d; --f-metal2: #3d2428; --f-wood: #7a1d22;
+}
+
+/* ---------- page: stage left, panels right ---------- */
+.flow-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 430px); gap: 14px; align-items: start; }
+.flow-main { min-width: 0; }
+.flow-side { display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 96px); overflow: auto; position: sticky; top: 76px; }
+.flow-side .panel.pad { padding: 12px 14px; }
+@media (min-width: 2200px) { .flow-page { grid-template-columns: minmax(0, 1fr) 520px; } }
+@media (max-width: 1250px) { .flow-page { grid-template-columns: 1fr; } .flow-side { max-height: none; position: static; } }
+
+/* ---------- status strip ---------- */
+.flow-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.fpill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); font-size: 12px; color: var(--muted); }
+.fpill b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
+.fpill .mini { width: 50px; height: 5px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.fpill .mini > i { display: block; height: 100%; background: linear-gradient(90deg, var(--f-worker), var(--f-out), #ff5d5d); background-size: 50px 100%; }
+.fpill.live { color: var(--text); }
+.fpill .beacon { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); animation: beacon 2s infinite; }
+.fpill.off .beacon { background: var(--bad); animation: none; }
+.fpill.paused { border-color: #c98a12; color: #e0a12a; }
+@keyframes beacon { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 55%, transparent); } 70% { box-shadow: 0 0 0 8px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; margin-left: auto; }
+.live-dot.on { background: var(--f-worker); box-shadow: 0 0 8px var(--f-worker); animation: beacon 2s infinite; }
+
+/* ---------- the stage: cards column + pyramid column, one row per tier ---------- */
+.flow {
+  position: relative; isolation: isolate; overflow: hidden; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--f-pyr) 22%, var(--border));
+  display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr); grid-template-rows: .85fr 1fr 1.2fr .95fr;
+  column-gap: 60px; row-gap: 12px; padding: 18px 26px 18px 22px;
+  height: calc(100vh - 152px); min-height: 640px;
+  background:
+    radial-gradient(600px 380px at 74% 40%, color-mix(in srgb, var(--f-pyr) 16%, transparent), transparent 70%),
+    radial-gradient(800px 300px at 20% 100%, color-mix(in srgb, var(--f-worker2) 8%, transparent), transparent 70%),
+    linear-gradient(var(--f-line) 1px, transparent 1px) 0 0 / 30px 30px, linear-gradient(90deg, var(--f-line) 1px, transparent 1px) 0 0 / 30px 30px,
+    var(--f-bg);
+}
+.flow-wires { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; overflow: visible; }
+.pyr-col { grid-column: 2; grid-row: 1 / 5; }
+.tier { grid-column: 1; position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; min-height: 0; }
+.tier.t1 { grid-row: 1; } .tier.t2 { grid-row: 2; } .tier.t3 { grid-row: 3; } .tier.t4 { grid-row: 4; }
+.tier-tag { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--f-dim); flex: none; opacity: .7; }
+.tier .fnode { flex: 1 1 0; min-width: 0; max-height: 100%; overflow: hidden; }
+.tier.t1 .fnode { max-width: 460px; }
+.tier.t3 { flex-wrap: wrap; align-content: center; }
+.tier.t3 .fnode { flex: 1 1 220px; }
+.tier.t3.many .fnode { flex-basis: 180px; }
+
+/* ---------- cards: glass with a glowing gradient edge in the agent's colour ---------- */
+.fnode {
+  --c: var(--f-main); position: relative; border-radius: 13px; padding: 9px 11px; color: var(--f-ink); border: 1px solid transparent;
+  background: linear-gradient(165deg, color-mix(in srgb, var(--c) 9%, var(--f-card)), var(--f-card)) padding-box,
+    linear-gradient(140deg, color-mix(in srgb, var(--c) 90%, transparent), color-mix(in srgb, var(--c) 12%, transparent) 50%, color-mix(in srgb, var(--c) 60%, transparent)) border-box;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--c) 13%, transparent), 0 8px 22px rgba(0, 0, 0, .28);
+  transition: box-shadow .5s;
+}
+.fnode[data-node="you"] { --c: var(--f-you); } .fnode[data-node="main"] { --c: var(--f-main); } .fnode[data-node="out"] { --c: var(--f-out); }
+.fnode.active { box-shadow: 0 0 28px color-mix(in srgb, var(--c) 36%, transparent), 0 0 70px color-mix(in srgb, var(--c) 12%, transparent), 0 8px 22px rgba(0, 0, 0, .28); }
+.fnode.off { opacity: .45; filter: saturate(.4); }
+
+.fn-head { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
+.fn-ico { position: relative; width: 28px; height: 28px; flex: none; border-radius: 8px; display: grid; place-items: center; color: var(--c);
+  background: color-mix(in srgb, var(--c) 15%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent); }
+.fn-ico svg { width: 16px; height: 16px; }
+.fn-ico::after { content: ""; position: absolute; inset: -4px; border-radius: 11px; border: 2px solid transparent; }
+.fnode.active .fn-ico::after { border-top-color: var(--c); border-right-color: color-mix(in srgb, var(--c) 35%, transparent); animation: spin 1.1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.fn-title { min-width: 0; flex: 1; }
+.fn-name { font-size: 11px; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fn-state { font-size: 11px; color: var(--c); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fnode:not(.active) .fn-state { color: var(--f-dim); }
+.fn-menu { background: transparent !important; color: var(--f-dim); border: none; padding: 2px 6px; font-size: 16px; line-height: 1; box-shadow: none !important; }
+.fn-menu:hover { color: var(--f-ink); }
+
+.fn-step { border: 1px solid color-mix(in srgb, var(--c) 22%, transparent); border-radius: 7px; padding: 4px 8px 5px; margin-bottom: 6px; background: color-mix(in srgb, var(--c) 6%, transparent); }
+.fn-step-top { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.fn-step-top span:last-child { color: var(--f-dim); font-variant-numeric: tabular-nums; letter-spacing: 0; font-weight: 500; text-transform: none; }
+.fn-bar { height: 3px; border-radius: 2px; margin-top: 4px; background: color-mix(in srgb, var(--c) 12%, transparent); overflow: hidden; position: relative; }
+.fn-bar > i { position: absolute; inset: 0 auto 0 0; border-radius: 2px; background: var(--c); box-shadow: 0 0 10px var(--c); transition: width .6s; }
+.fn-bar.run > i { width: 100% !important; animation: stripes .9s linear infinite;
+  background: repeating-linear-gradient(-45deg, var(--c) 0 8px, color-mix(in srgb, var(--c) 40%, transparent) 8px 16px); background-size: 22.6px 100%; }
+@keyframes stripes { to { background-position: 22.6px 0; } }
+
+.fn-body { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; }
+.tier.t3 .fn-body { grid-template-columns: 1fr; }
+.tier.t3 .fn-body > .fn-box:nth-child(2) { display: none; }   /* workers: task + tool chain only; the live feed is in the side panel */
+.fn-box { border-radius: 7px; padding: 6px 8px; font-size: 11.5px; background: color-mix(in srgb, #000 24%, transparent); border: 1px solid color-mix(in srgb, var(--c) 12%, var(--border)); min-width: 0; }
+:root[data-theme="light"] .fn-box { background: color-mix(in srgb, var(--c) 4%, #fff); }
+.fn-lbl { font-size: 9.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--f-dim); margin-bottom: 3px; }
+.fn-task { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.35; }
+.fn-tool { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; color: var(--f-dim); border: 1px solid var(--border); flex: none; }
+.fn-tool svg { width: 12px; height: 12px; }
+.fn-tool.now { color: var(--c); border-color: color-mix(in srgb, var(--c) 60%, transparent); box-shadow: 0 0 10px color-mix(in srgb, var(--c) 35%, transparent); }
+.fn-tool.err { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, transparent); }
+.fn-chain { display: flex; align-items: center; margin-top: 5px; overflow: hidden; }
+.fn-link { position: relative; width: 12px; height: 2px; background: color-mix(in srgb, var(--c) 35%, transparent); flex: none; overflow: hidden; }
+.fnode.active .fn-link::after { content: ""; position: absolute; top: -1px; width: 6px; height: 4px; border-radius: 2px; background: var(--c); box-shadow: 0 0 6px var(--c); animation: hop 1.1s linear infinite; }
+@keyframes hop { from { left: -6px; } to { left: 12px; } }
+.fn-checks { display: flex; flex-direction: column; gap: 3px; }
+.fn-check { display: grid; grid-template-columns: 13px minmax(0, 1fr) auto; gap: 6px; align-items: center; font-size: 11px; }
+.fn-check i { width: 13px; height: 13px; border-radius: 3px; display: grid; place-items: center; font-style: normal; font-size: 9px; color: #06101c; background: var(--c); }
+.fn-check span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .fn-check em { font-style: normal; color: var(--f-dim); font-size: 10px; }
+.fn-feed { display: flex; flex-direction: column; gap: 3px; max-height: 64px; overflow: hidden; }
+.fe { font-size: 11px; line-height: 1.35; display: flex; gap: 6px; }
+.fe.new, .tchip.new, .fdec div.new, .ase.new { animation: fadein .4s ease; }
+.fe .g { flex: none; width: 12px; text-align: center; color: var(--f-dim); }
+.fe.tool .g { color: var(--c); } .fe.think .t { color: var(--f-dim); font-style: italic; } .fe.err .g, .fe.err .t { color: var(--bad); }
+.fe .t { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.fe .tn { font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; color: var(--c); }
+@keyframes fadein { from { opacity: 0; transform: translateY(4px); } }
+.fn-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 5px; font-size: 10px; color: var(--f-dim); }
+.fn-foot span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fn-empty { color: var(--f-dim); font-size: 11px; }
+.typing::after { content: "▍"; color: var(--c); animation: blink 1s steps(1) infinite; margin-left: 1px; }
+@keyframes blink { 50% { opacity: 0; } }
+/* you */
+.fnode[data-node="you"] .fn-body { grid-template-columns: 1fr 1fr; }
+.fn-ask { grid-column: 1 / -1; display: flex; gap: 6px; padding: 0; border: 0; }
+.fn-ask textarea { flex: 1; min-height: 30px; height: 30px; font-size: 12px; padding: 5px 8px; border-radius: 7px; resize: none; background: color-mix(in srgb, var(--f-bg) 60%, transparent); }
+.fn-ask button { align-self: stretch; background: var(--c) !important; color: #111 !important; font-weight: 650; }
+/* output */
+.fn-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; align-content: start; }
+.fn-stat { text-align: center; border: 1px solid color-mix(in srgb, var(--c) 18%, var(--border)); border-radius: 7px; padding: 5px 2px; }
+.fn-stat b { display: block; font-size: 17px; color: var(--c); font-variant-numeric: tabular-nums; line-height: 1.2; }
+.fn-stat span { font-size: 9px; color: var(--f-dim); text-transform: uppercase; letter-spacing: .05em; }
+.fn-file { display: flex; align-items: center; gap: 7px; padding: 2px; font-size: 11px; text-decoration: none; color: var(--f-ink); min-width: 0; }
+.fn-file:hover { color: var(--c); }
+.fn-file .fi { flex: none; font-size: 8.5px; font-weight: 800; letter-spacing: .03em; padding: 1px 4px; border-radius: 4px; color: #06101c; background: var(--c); }
+.fn-file .fname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .fn-file .fwhen { color: var(--f-dim); font-size: 10px; }
+.fn-file.new { animation: newfile 2.4s ease; }
+/* Output > Changes: files added (+) and removed (−) in the work folder */
+.fn-changes { display: grid; gap: 1px; }
+.fn-change { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--f-ink); min-width: 0; padding: 1px 2px; }
+.fn-change i { flex: none; width: 14px; text-align: center; font-style: normal; font-weight: 800; border-radius: 4px; }
+.fn-change.removed i { color: #ff5a5a; background: rgba(255, 90, 90, .12); }
+.fn-change.removed .fname { color: var(--f-dim); text-decoration: line-through; text-decoration-color: rgba(255, 90, 90, .6); }
+.fn-change.added i { color: #4ade80; background: rgba(74, 222, 128, .12); }
+.fn-change .fname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fn-change .fwhen { color: var(--f-dim); font-size: 10px; }
+@keyframes newfile { 0%, 40% { background: color-mix(in srgb, var(--c) 22%, transparent); } }
+
+/* ---------- the IT orchestra (SVG, drawn by flow.js): your face, the composer brain, the agent brains, the output rack ---------- */
+.orch text, .sc-rain text { font-family: "JetBrains Mono", Consolas, ui-monospace, monospace; }
+.sc-rain { fill: var(--f-main); font-size: 11px; opacity: .07; }
+:root[data-theme="light"] .sc-rain { opacity: .06; }
+:root[data-theme="light"] .flow::after { opacity: .35; }
+.flow::after { content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, color-mix(in srgb, var(--f-main) 4%, transparent) 0 1px, transparent 1px 3px); }
+.sc-label { font-size: 10px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; opacity: .65; }
+.on > .sc-label { opacity: 1; }
+.sc-you { opacity: .8; transition: opacity .4s; } .sc-you.on { opacity: 1; }
+.sc-you.on .sc-glow { filter: drop-shadow(0 0 8px var(--f-you)); }
+.sc-cond { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--f-main) 22%, transparent)); }
+.sc-cond.on { filter: drop-shadow(0 0 18px color-mix(in srgb, var(--f-main) 50%, transparent)); }
+.sc-agent.off { opacity: .32; filter: saturate(.3); }
+.sc-brain-lit { filter: drop-shadow(0 0 2px color-mix(in srgb, var(--f-main) 60%, transparent)); }
+.sc-brain.on .sc-brain-lit { filter: drop-shadow(0 0 5px var(--f-main)) brightness(1.15); }
+.sc-rack.on .sc-glow { filter: drop-shadow(0 0 10px var(--f-out)); }
+/* leader lines, ridge flow, comets */
+.wire { fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; opacity: .35; transition: opacity .4s; }
+.wire.on { opacity: 1; }
+.wire.spine:not(.on) { opacity: .14; }
+.wire.back { stroke-dasharray: 2 6; } .wire.back.on { animation: wireflow 1.2s linear infinite; }
+@keyframes wireflow { to { stroke-dashoffset: 16; } }
+.wire-glow { fill: none; stroke-width: 7; opacity: 0; filter: blur(5px); transition: opacity .4s; }
+.wire-glow.on { opacity: .5; }
+.wire-node { opacity: .9; }
+
+/* ---------- side panels ---------- */
+.pipe { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.lane { border: 1px solid var(--border); border-radius: 9px; padding: 7px; min-height: 64px; background: var(--bg); }
+.lane h3 { margin: 0 0 6px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.lane h3 i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.tchip { border: 1px solid var(--border); border-left: 3px solid var(--lc, var(--main)); border-radius: 6px; padding: 5px 7px; margin-bottom: 5px; font-size: 11.5px; background: var(--panel); }
+.tchip .tid { font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; color: var(--muted); margin-right: 5px; }
+.tchip.stuck { border-left-color: var(--bad); } .tchip.stuck .tid::after { content: " · stuck"; color: var(--bad); }
+.fdec { display: flex; flex-direction: column; max-height: 190px; overflow: auto; font-size: 12px; }
+.fdec div { display: flex; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.fdec div:last-child { border: none; } .fdec .t { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; font-size: 11px; padding-top: 1px; }
+.act-stream { display: flex; flex-direction: column; max-height: 340px; overflow: auto; font-size: 12px; }
+.ase { display: grid; grid-template-columns: 44px 66px minmax(0, 1fr); gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); align-items: baseline; }
+.ase:last-child { border-bottom: none; }
+.ase .t { color: var(--muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.ase .who { font-weight: 650; color: var(--c); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ase .x { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ase .x .tn { font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: var(--c); }
+.ase.err .x { color: var(--bad); } .ase.think .x { color: var(--muted); font-style: italic; }
+
+/* (small screens: the stacked layout is the @container rule at the end of this file) */
+@media (prefers-reduced-motion: reduce) {
+  .fnode.active .fn-ico::after, .wire.back.on,.fn-bar.run > i, .fpill .beacon, .live-dot.on, .fe.new, .tchip.new, .ase.new, .fn-file.new, .fnode.active .fn-link::after { animation: none !important; }
+  .wire-dot { display: none; }
+}
+.fnode[data-node="main"] .fn-body > :last-child { grid-column: 1 / -1; }
+
+/* ---------- tidy cards, full-width stage ---------- */
+.flow-page { grid-template-columns: 1fr; }
+.flow { grid-template-columns: minmax(0, 1.1fr) minmax(340px, 1fr); }
+.fn-foot { display: none; }
+.tier { justify-content: flex-start; }
+.tier .fnode { flex: 0 1 auto; width: 100%; }
+.tier.t1 .fnode { max-width: 520px; }
+.tier.t2 .fnode, .tier.t4 .fnode { max-width: 640px; }
+.tier.t3 .fnode { flex: 0 1 300px; width: auto; }
+.tier.t3.many .fnode { flex-basis: 230px; }
+.fnode[data-node="you"] .fn-body { grid-template-columns: 1fr; }
+.fn-files { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.fn-box .fn-task { -webkit-line-clamp: 2; }
+.tier.t3 .fn-task { -webkit-line-clamp: 1; }
+/* Rows grow with their cards (never smaller than the cards), and share any spare screen height in the old proportions,
+   so cards never spill into the next row at any window size. flow.js redraws the scene when #flow resizes. */
+.flow { height: auto; min-height: max(560px, calc(100vh - 152px));
+  grid-template-rows: minmax(min-content, .85fr) minmax(min-content, 1fr) minmax(min-content, 1.2fr) minmax(min-content, .95fr); }
+.tier .fnode { max-height: none; }
+.tier.t3 .fnode, .tier.t3.many .fnode { flex: 1 1 210px; max-width: 320px; }
+.tier.t3 { padding-left: 26px; }   /* the tag sits outside the wrapping cards, so a second row lines up with the first */
+.tier.t3 > .tier-tag { position: absolute; left: 0; top: 50%; transform: translateY(-50%) rotate(180deg); }
+/* Stack (scene above, cards below) when the Flow column itself is narrow - a container query, so an open sidebar counts. */
+.flow-main { container-type: inline-size; }
+@container (max-width: 860px) {
+  .flow { grid-template-columns: 1fr; grid-template-rows: clamp(360px, 62cqw, 520px) auto auto auto auto; min-height: 0; column-gap: 0; padding: 14px; }
+  .pyr-col { grid-column: 1; grid-row: 1; } .tier.t1 { grid-row: 2; } .tier.t2 { grid-row: 3; } .tier.t3 { grid-row: 4; } .tier.t4 { grid-row: 5; }
+  .tier .fnode, .tier.t1 .fnode, .tier.t2 .fnode, .tier.t4 .fnode { max-width: none; }
+  .tier.t3 .fnode { flex: 1 1 260px; }
+}
+/* the panels that left the Flow page, on the Dashboard */
+.dash-live { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, .9fr); gap: 14px; align-items: start; }
+@media (max-width: 1300px) { .dash-live { grid-template-columns: 1fr; } }

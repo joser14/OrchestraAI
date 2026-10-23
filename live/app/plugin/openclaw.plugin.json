@@ -1,0 +1,35 @@
+{
+  "id": "orchestra-team",
+  "name": "Orchestra Team",
+  "description": "Team board, tasks, talk and PDFs for the Orchestra brain + worker team.",
+  "version": "0.2.0",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "apiUrl": {
+        "type": "string",
+        "description": "Orchestra API, default http://127.0.0.1:8790"
+      },
+      "tokenFile": {
+        "type": "string",
+        "description": "File holding the Orchestra API token"
+      }
+    }
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "tools": [
+      "team_brief",
+      "team_post",
+      "team_done",
+      "team_assign",
+      "team_cancel",
+      "team_sleep",
+      "team_say",
+      "team_read",
+      "team_pdf"
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+# Your data: board, tasks, logs, the API token, work and inbox files - never in version control
+live/data/
+
+# Dependencies and build output (reinstalled / rebuilt)
+node_modules/
+dist/
+*.blockmap
+
+# The built installer (rebuild with "Orchestra.cmd build")
+installer/*.exe
+
+# Editor and OS clutter
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+*.log

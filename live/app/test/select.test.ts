@@ -1,0 +1,120 @@
+// Phase 2 gate: on this laptop (RTX 3080 Laptop, 8 GB) the selector must pick today's lineup; other machines
+// get sensible lineups per the design table.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { selectLineup, needGB } from '../src/select.ts';
+import { CATALOG } from '../src/catalog.ts';
+import type { Hardware, Gpu } from '../src/hardware.ts';
+
+const hw = (gpu: Partial<Gpu> | null, ramGB = 32): Hardware => ({
+  os: 'test', arch: 'x64', cpu: 'test', cores: 8, ramGB, freeRamGB: ramGB / 2, diskFreeGB: 500, scannedAt: '',
+  gpus: gpu ? [gpu as Gpu] : [], bestGpu: gpu ? ({ vendor: 'nvidia', name: 'test', source: 'test', ...gpu } as Gpu) : null, ollama: { installed: true },
+});
+const avail = new Set(CATALOG.map((m) => m.tag));   // pretend the registry has every tag
+
+test('8 GB laptop (this PC): brain 8B, workers 4B fast, one worker at a time', () => {
+  // 6.5 GB in use of which 6.3 GB are Ollama's own loaded models -> 7.8 GB capacity
+  const l = selectLineup(hw({ vramGB: 8, freeGB: 1.5 }), { ollamaLoadedGB: 6.3, available: avail });
+  assert.equal(l.brain?.model.alias, 'smart'); assert.equal(l.worker?.model.alias, 'fast');
+  assert.equal(l.parallelWorkers, 1); assert.equal(l.cpuOnly, false);
+  assert.ok(l.brain!.needGB <= 7.2, `8B at 24k needs ${l.brain!.needGB} GB`);
+});
+test('16 GB card: 14B brain', () => {
+  const l = selectLineup(hw({ vramGB: 16, freeGB: 15.5 }), { available: avail });
+  assert.equal(l.brain?.model.alias, 'large');
+});
+test('24 GB card: Qwen3.8 27B brain (newest; 32B does not fit at 24k)', () => {
+  const l = selectLineup(hw({ vramGB: 24, freeGB: 23.5 }), { available: avail });
+  assert.equal(l.brain?.model.alias, 'qwen38-27b');
+});
+test('24 GB card without the 2026-10 additions: Qwen3.5 27B brain', () => {
+  const l = selectLineup(hw({ vramGB: 24, freeGB: 23.5 }), { available: avail, failed: new Set(['huihui_ai/Qwen3.8-abliterated:27b', 'huihui_ai/Qwen3.6-abliterated:27b']) });
+  assert.equal(l.brain?.model.alias, 'qwen35-27b');
+});
+test('24 GB card where the big models failed their tests: 14B brain + two workers at once', () => {
+  const l = selectLineup(hw({ vramGB: 24, freeGB: 23.5 }), { available: avail, failed: new Set(CATALOG.filter((m) => m.params > 14).map((m) => m.tag)) });
+  assert.equal(l.brain?.model.alias, 'large'); assert.equal(l.parallelWorkers, 2);
+});
+test('48 GB card: the newest model that fits wins (Qwen3.8 27B over the older Qwen3 32B); 32B when it is unavailable', () => {
+  const l = selectLineup(hw({ vramGB: 48, freeGB: 47 }), { available: avail });
+  assert.equal(l.brain?.model.alias, 'qwen38-27b');
+  const old = selectLineup(hw({ vramGB: 48, freeGB: 47 }), { available: avail, failed: new Set(CATALOG.filter((m) => m.score > 100 && m.alias !== 'big').map((m) => m.tag)) });
+  assert.equal(old.brain?.model.alias, 'big');
+});
+test('6 GB card: brain falls back to 4B with a warning', () => {
+  const l = selectLineup(hw({ vramGB: 6, freeGB: 5.6 }), { available: avail });
+  assert.equal(l.brain?.model.params, 4); assert.ok(l.warnings.some((w) => /reliability/.test(w)));
+});
+test('no GPU: CPU lineup, small brain, warning', () => {
+  const l = selectLineup(hw(null, 16), { available: avail });
+  assert.ok(l.cpuOnly); assert.ok(l.brain && l.brain.model.params <= 4); assert.ok(l.warnings.length);
+});
+test('recorded tool-test failures are never offered; unverified tags are skipped until confirmed', () => {
+  const l = selectLineup(hw({ vramGB: 16, freeGB: 16 }), { available: new Set(['huihui_ai/qwen3-abliterated:8b']) });
+  assert.notEqual(l.brain?.model.alias, 'large', '14B not confirmed in the registry');
+  assert.ok(!l.fits.some((f) => ['coder', 'phi', 'nano', 'orchestrator'].includes(f.model.alias)));
+  assert.equal(needGB(CATALOG.find((m) => m.alias === 'fast')!, 24576) > 4, true);
+});
+
+test('model kinds: only standard ticked -> an all-standard lineup; both ticked -> proven brain kept on 8 GB', async () => {
+  const { kindOf } = await import('../src/catalog.ts');
+  const std = selectLineup(hw({ vramGB: 8, freeGB: 1.5 }), { ollamaLoadedGB: 6.3, available: avail, kinds: ['standard'] });
+  for (const f of [std.brain, std.worker, std.vision, std.chores]) if (f) assert.equal(kindOf(f.model), 'standard', f.model.alias);
+  const both = selectLineup(hw({ vramGB: 8, freeGB: 1.5 }), { ollamaLoadedGB: 6.3, available: avail, kinds: ['abliterated', 'standard'] });
+  assert.equal(both.brain?.model.alias, 'smart');
+});
+
+test('custom open model: parameters read from the tag, roles by size', async () => {
+  const { customModel } = await import('../src/catalog.ts');
+  await assert.rejects(customModel('bad name!'), /Ollama model name/);
+  const m = await customModel('hf.co/someone/some-model-7b-GGUF:Q4_K_M');   // no registry check for hf.co
+  assert.equal(m.kind, 'custom'); assert.ok(m.roles.includes('worker'));
+});
+
+test('setup uses downloaded models first: nothing is fetched when a 14B brain is already there (this PC, 16 GB)', async () => {
+  const { preferInstalled } = await import('../src/setup.ts');
+  const l = selectLineup(hw({ vramGB: 16, freeGB: 15.5 }), { available: avail, kinds: ['abliterated', 'standard'] });
+  const inst = new Set(['qwen3:14b', 'huihui_ai/qwen3-abliterated:14b']);
+  const said: string[] = []; preferInstalled(l, inst, (m) => said.push(m));
+  const tags = [l.brain, l.worker, l.vision, l.chores].filter(Boolean).map((f) => f!.model.tag);
+  assert.ok(tags.every((t) => inst.has(t)), `would download: ${tags.filter((t) => !inst.has(t)).join(', ')}`);
+  assert.ok(l.brain && l.worker, 'brain and worker are filled from what is installed');
+  assert.equal(l.vision, null); assert.equal(l.chores, null);
+});
+test('setup still downloads brain and worker when nothing suitable is installed', async () => {
+  const { preferInstalled } = await import('../src/setup.ts');
+  const l = selectLineup(hw({ vramGB: 16, freeGB: 15.5 }), { available: avail });
+  const before = l.brain!.model.tag; preferInstalled(l, new Set());
+  assert.equal(l.brain!.model.tag, before); assert.ok(l.worker);
+});
+
+// ---- specialty rigs: Blackwell, DGX Spark (GB10 unified memory), multi-GPU ----
+import { parseNvidia, gpuWarnings } from '../src/hardware.ts';
+import { modelCapacityGB, workerMaxParams } from '../src/select.ts';
+
+test('DGX Spark: nvidia-smi memory "[N/A]" / "Not Supported" becomes unified memory from system RAM', () => {
+  const [g] = parseNvidia('NVIDIA GB10, [N/A], [N/A], 12.1, 580.95.05\n', 128, 120);
+  assert.equal(g.unified, true); assert.equal(g.vramGB, 108.8); assert.equal(g.computeCap, '12.1');
+  const [h] = parseNvidia('NVIDIA GB10, Not Supported, Not Supported, 12.1, 580.95.05', 128, 120);
+  assert.equal(h.unified, true);
+});
+
+test('DGX Spark: a big brain and workers bigger than 4B', () => {
+  const [g] = parseNvidia('NVIDIA GB10, [N/A], [N/A], 12.1, 580.95.05', 128, 120);
+  const L = selectLineup({ ...hw(g, 128), arch: 'arm64' }, { available: avail, kinds: ['abliterated', 'standard'] });
+  assert.equal(L.cpuOnly, false);
+  assert.ok(L.brain!.model.params >= 30, `brain ${L.brain!.model.tag}`);
+  assert.ok(L.worker!.model.params > 4, `worker ${L.worker!.model.tag}`);
+});
+
+test('two RTX 5090s are one 64 GB pool; a Blackwell card on an old driver is flagged', () => {
+  const gpus = parseNvidia('NVIDIA GeForce RTX 5090, 32607, 600, 12.0, 576.02\nNVIDIA GeForce RTX 5090, 32607, 400, 12.0, 576.02', 64, 50);
+  const H: Hardware = { ...hw(gpus[0], 64), gpus };
+  assert.ok(modelCapacityGB(H, 0) > 60);
+  assert.deepEqual(gpuWarnings(gpus), []);
+  assert.match(gpuWarnings(parseNvidia('NVIDIA GeForce RTX 5080, 16303, 500, 12.0, 566.36', 32, 20))[0], /driver is 566\.36/);
+});
+
+test('worker size scales with the budget', () => {
+  assert.equal(workerMaxParams(7), 4); assert.equal(workerMaxParams(45), 14); assert.equal(workerMaxParams(100), 32);
+});
