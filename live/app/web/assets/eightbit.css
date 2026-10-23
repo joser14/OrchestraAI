@@ -122,6 +122,11 @@ html[data-look="8bit"] .set-row { flex-wrap: wrap; }
 html[data-look="8bit"] .set-row .seg { flex-wrap: wrap; max-width: 100%; }
 html[data-look="8bit"] .seg button { padding: 7px 9px; }
 
+/* Skills page: playbook empty state and editor labels in the terminal face */
+html[data-look="8bit"] .ts-empty b { font-family: var(--vt); font-size: 22px; font-weight: 400; }
+html[data-look="8bit"] .ts-grid label, html[data-look="8bit"] .ts-body { font-weight: 400; font-size: 19px; }
+html[data-look="8bit"] .ts-dialog { box-shadow: 6px 6px 0 rgba(0, 0, 0, .7) !important; }
+
 /* Kanban in pixel style */
 html[data-look="8bit"] .kb-col, html[data-look="8bit"] .kb-card { border-width: 2px; }
 html[data-look="8bit"] .kb-card { box-shadow: 3px 3px 0 rgba(0, 0, 0, .5); }

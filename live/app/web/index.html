@@ -43,6 +43,7 @@
   .a-worker { border-color: var(--worker); } .a-worker .who { color: var(--worker); }
   .a-worker2 { border-color: var(--other); } .a-worker2 .who { color: var(--other); }
   .a-jr { border-color: var(--jr); } .a-jr .who { color: var(--jr); }
+  [hidden] { display: none !important; }   /* "form { display: flex }" and friends beat the hidden attribute (the skill editor never hid) */
   form { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); flex-wrap: wrap; }
   textarea { flex: 1 1 300px; min-height: 60px; resize: vertical; font: inherit; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
   select, button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
@@ -234,7 +235,24 @@
   .rc-run { border: 1px solid var(--border); padding: 10px 12px; margin: 6px 0; display: flex; flex-direction: column; gap: 8px; }
   .rc-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; } .rc-fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   #rcPreview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ts-form { border: 1px solid var(--border); padding: 12px; margin: 4px 0 14px; } #tsList { margin-top: 4px; } .sk-foot .small { margin-left: 6px; }
+  /* Skills page: a header row per section (title + one-line explainer, action on the right) */
+  .skp-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 14px; }
+  .skp-head > div:first-child { flex: 1; min-width: 0; } .skp-head h2 { margin: 0 0 4px; } .skp-head .sub { max-width: 780px; line-height: 1.35; } .skp-head > button { flex: none; }
+  #tsList { margin-top: 4px; } .sk-foot .small { margin-left: 6px; } .sk-foot > span:last-child { display: inline-flex; gap: 6px; }
+  /* empty state: why playbooks matter, and starters that open the editor filled in */
+  .ts-empty { border: 1px dashed var(--border); padding: 18px; display: grid; gap: 12px; grid-column: 1 / -1; }
+  .ts-empty b { font-size: 15px; } .ts-starters { display: flex; flex-wrap: wrap; gap: 8px; }
+  /* playbook editor dialog */
+  .ts-modal { position: fixed; inset: 0; z-index: 900; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, .6); }
+  .ts-dialog { width: min(760px, 100%); max-height: calc(100vh - 32px); overflow: auto; display: grid; gap: 14px; }
+  .ts-dialog h2 { margin: 0; }
+  .ts-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 14px; }
+  .ts-grid label, .ts-body { display: flex; flex-direction: column; gap: 6px; font-weight: 600; min-width: 0; }
+  .ts-grid .sub, .ts-body .sub { font-weight: 400; }
+  .ts-grid input { height: 40px; padding: 0 10px; width: 100%; box-sizing: border-box; }
+  .ts-body textarea { width: 100%; box-sizing: border-box; min-height: 220px; resize: vertical; padding: 10px; font-family: ui-monospace, monospace; }
+  .ts-actions { display: flex; gap: 10px; align-items: center; justify-content: flex-end; } .ts-actions #tsMsg { margin-right: auto; color: var(--bad); }
+  @media (max-width: 640px) { .ts-grid { grid-template-columns: 1fr; } .skp-head { flex-direction: column; } }
   /* Simple mode: advanced pages hidden until "Show advanced" */
   html:not([data-adv]) .nav .adv { display: none; }
   .nav-adv { display: flex; align-items: center; gap: 8px; margin: 14px 10px 4px; font-size: 12px; color: var(--muted); cursor: pointer; }
@@ -668,11 +686,11 @@
     <button type="button" class="adv" data-tab="metrics"><span class="ico">📈</span>Metrics</button>
     <button type="button" class="adv" data-tab="live"><span class="ico">◉</span>Sessions</button>
     <div class="nav-label adv">Customize</div>
-    <button type="button" class="adv" data-tab="library"><span class="ico">◈</span>Models <span class="badge" id="libBadge"></span></button>
     <button type="button" class="adv" data-tab="tools"><span class="ico">⚒</span>Tools</button>
     <button type="button" class="adv" data-tab="skills"><span class="ico">✦</span>Skills</button>
     <div class="nav-label">Settings</div>
     <button type="button" data-tab="settings"><span class="ico">⛭</span>Settings <span class="badge warn" id="setBadge"></span></button>
+    <button type="button" data-tab="library"><span class="ico">◈</span>Models <span class="badge" id="libBadge"></span></button>
     <button type="button" class="adv" data-tab="setup"><span class="ico">⬢</span>Setup</button>
     <button type="button" class="adv" data-tab="system"><span class="ico">⚙</span>System <span class="badge warn" id="sysBadge"></span></button>
     <button type="button" class="adv" data-tab="logs"><span class="ico">≡</span>Logs <span class="badge warn" id="logBadge"></span></button>
@@ -1095,21 +1113,29 @@
   <!-- SKILLS -->
   <div class="tabpane" id="tab-skills">
     <section class="panel pad">
-      <h2>Team skills <span class="sub">your playbooks: agents see the name and description, and read the instructions when a job matches</span>
-        <button type="button" class="small" id="tsNew" style="float:right">+ New skill</button></h2>
-      <form id="tsForm" class="ts-form" hidden>
-        <div class="mcp-grid">
-          <label>Name<input id="tsName" class="inp" placeholder="report-format" autocomplete="off" spellcheck="false"></label>
-          <label>When to use it (one line)<input id="tsDesc" class="inp" placeholder="How to lay out any report PDF for jr: sections, a summary table, sources"></label>
-        </div>
-        <label class="ct-cmd">Instructions <span class="sub">steps, an example, edge cases (Markdown, under 500 lines)</span>
-          <textarea id="tsBody" rows="8" class="inp" placeholder="1. Start with a one-paragraph summary.&#10;2. Then a table: option, price, pros, cons.&#10;3. End with sources as links."></textarea></label>
-        <div class="t-row"><span class="sub" id="tsMsg"></span><button type="button" class="small ghost" id="tsCancel">Cancel</button><button type="button" class="small" id="tsSave">Save skill</button></div>
-      </form>
+      <div class="skp-head">
+        <div><h2>Your playbooks</h2>
+          <div class="sub">How-tos you write once: "how we lay out a report", "how we name files". Agents see each playbook's name and when to use it, and follow its steps when a job matches.</div></div>
+        <button type="button" id="tsNew">+ New playbook</button>
+      </div>
       <div id="tsList" class="sk-grid"><div class="sub">Loading…</div></div>
     </section>
+    <!-- playbook editor: a dialog over the page -->
+    <div class="ts-modal" id="tsForm" hidden>
+      <div class="ts-dialog panel pad" role="dialog" aria-modal="true" aria-labelledby="tsTitle">
+        <h2 id="tsTitle">New playbook</h2>
+        <div class="ts-grid">
+          <label>Name <span class="sub">short, lowercase</span><input id="tsName" class="inp" placeholder="report-format" autocomplete="off" spellcheck="false"></label>
+          <label>When to use it <span class="sub">one line: agents match jobs against this</span><input id="tsDesc" class="inp" placeholder="Laying out any report or PDF for jr"></label>
+        </div>
+        <label class="ts-body">Steps <span class="sub">numbered steps, an example, edge cases (Markdown)</span>
+          <textarea id="tsBody" rows="12" class="inp" placeholder="1. Start with a one-paragraph summary.&#10;2. Then a table: option, price, pros, cons.&#10;3. End with sources as links."></textarea></label>
+        <div class="ts-actions"><span class="sub" id="tsMsg"></span><button type="button" class="ghost" id="tsCancel">Cancel</button><button type="button" id="tsSave">Save playbook</button></div>
+      </div>
+    </div>
     <section class="panel pad">
-      <h2>Skills <span class="sub">ready-made know-how OpenClaw agents can load when a job calls for it</span></h2>
+      <div class="skp-head"><div><h2>Built-in skills</h2>
+        <div class="sub">Ready-made know-how that comes with OpenClaw. Agents load one when a job calls for it; some need a program or key first.</div></div></div>
       <div class="sk-bar">
         <div class="seg" id="skFilter"><button type="button" data-v="ready" class="on">Ready</button><button type="button" data-v="setup">Needs setup</button><button type="button" data-v="all">All</button></div>
         <input id="skSearch" class="inp" placeholder="Search skills…" autocomplete="off">
@@ -1642,7 +1668,7 @@ const PAGES = {
   library: ['Models', 'Every model Orchestra knows: install, test and pick which one does each job'],
   settings: ['Settings', 'Autonomy, workers, model types and approvals'],
   memory: ['Memory', 'What the team remembers: your standing notes, and each agent\'s own memory'],
-  skills: ['Skills', 'Ready-made know-how the agents can load from OpenClaw'],
+  skills: ['Skills', 'Playbooks you write for the team, and the skills built into OpenClaw'],
 };
 function showTab(name) {
   name = { team: 'flow' }[name] || name;   // old links
@@ -2217,17 +2243,37 @@ async function loadTeamSkills() {
   const r = await fetch('/api/teamskills').then((x) => x.json()).catch(() => null); const list = (r && r.skills) || [];
   $('tsList').replaceChildren(...(list.length ? list.map((s) => {
     const card = el('div', 'sk-card ready'); card.title = s.body.slice(0, 400);
-    const head = el('div', 'sk-head'); head.append(el('span', 'sk-e', '★'), el('span', 'sk-name', s.name), el('span', 'sk-st ok', 'team'));
+    const head = el('div', 'sk-head'); head.append(el('span', 'sk-e', '★'), el('span', 'sk-name', s.name), el('span', 'sk-st ok', 'in use'));
     const foot = el('div', 'sk-foot'); foot.append(el('span', 'sub', `${s.body.split('\n').length} lines · ${fmtWhen(s.mtime)}`));
     const btns = el('span'); const ed = el('button', 'small ghost', 'Edit'); ed.type = 'button'; const rm = el('button', 'small ghost', 'Remove'); rm.type = 'button';
-    ed.onclick = () => { tsEditing = s.name; $('tsName').value = s.name; $('tsDesc').value = s.description; $('tsBody').value = s.body; $('tsMsg').textContent = ''; $('tsForm').hidden = false; $('tsName').focus(); };
+    ed.onclick = () => openPlaybook(s.name, s.name, s.description, s.body);
     rm.onclick = async () => { if (!confirm(`Remove the skill "${s.name}"?`)) return; try { toast((await postJSON('/api/teamskills/remove', { name: s.name })).msg); } catch (e) { toast(e.message, true); } loadTeamSkills(); };
     btns.append(ed, rm); foot.append(btns);
     card.append(head, el('div', 'sk-about', s.description), foot); return card;
-  }) : [el('div', 'sub', 'No team skills yet. Write one for anything the team should always do the same way (report layout, naming files, research steps).')]));
+  }) : [playbookEmpty()]));
 }
-$('tsNew').onclick = () => { tsEditing = ''; $('tsName').value = $('tsDesc').value = $('tsBody').value = ''; $('tsMsg').textContent = ''; $('tsForm').hidden = false; $('tsName').focus(); };
+// starters: the three things a home team most often wants done the same way every time
+const PLAYBOOK_STARTERS = [
+  ['report-format', 'Laying out any report or PDF for jr', '1. Start with a one-paragraph summary of the answer.\n2. Then the details under short headings.\n3. Put any comparison in a table: option, price, pros, cons.\n4. End with the sources as links.\n5. Save it as a .md file in the work folder, then make the PDF with team_pdf.'],
+  ['file-naming', 'Naming any file saved in the work folder', '1. Lowercase words joined by dashes: monitor-comparison.md\n2. Start with what it is, not the date.\n3. Add the date only for things that repeat: weekly-summary-2026-10-23.md\n4. Never overwrite a file: add -2, -3 instead.'],
+  ['research-steps', 'Researching a question on the web', '1. Search at least 3 different sources.\n2. Prefer official sites and recent pages (this year).\n3. Note where each fact came from.\n4. If sources disagree, say so and give both.\n5. Finish with a short answer first, then the evidence.'],
+];
+function playbookEmpty() {
+  const box = el('div', 'ts-empty');
+  box.append(el('b', null, 'No playbooks yet'), el('div', 'sub', 'Write one for anything the team should always do the same way. Start from an example:'));
+  const row = el('div', 'ts-starters');
+  for (const [name, desc, body] of PLAYBOOK_STARTERS) { const b = el('button', 'ghost', name.replace(/-/g, ' ')); b.type = 'button'; b.onclick = () => openPlaybook('', name, desc, body); row.append(b); }
+  box.append(row); return box;
+}
+function openPlaybook(editing, name, desc, body) {
+  tsEditing = editing; $('tsName').value = name; $('tsDesc').value = desc; $('tsBody').value = body; $('tsMsg').textContent = '';
+  $('tsTitle').textContent = editing ? `Edit playbook: ${editing}` : 'New playbook';
+  $('tsForm').hidden = false; (name ? $('tsBody') : $('tsName')).focus();
+}
+$('tsNew').onclick = () => openPlaybook('', '', '', '');
 $('tsCancel').onclick = () => { $('tsForm').hidden = true; };
+$('tsForm').onclick = (e) => { if (e.target === $('tsForm')) $('tsForm').hidden = true; };   // click outside closes
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('tsForm').hidden) $('tsForm').hidden = true; });
 $('tsSave').onclick = async () => {
   try { const r = await postJSON('/api/teamskills/save', { name: $('tsName').value, description: $('tsDesc').value, body: $('tsBody').value, old: tsEditing || undefined }); toast(r.msg); $('tsForm').hidden = true; loadTeamSkills(); }
   catch (e) { $('tsMsg').textContent = e.message; }
