@@ -4,18 +4,15 @@ A local AI team for any PC: a **brain** (`main`) that plans and assigns, and **w
 on [OpenClaw](https://docs.openclaw.ai) agents and abliterated [Ollama](https://ollama.com) models sized to the
 machine. One Node.js/TypeScript service with a desktop app (Electron).
 
-Design doc: "Orchestra – Design" (claude.ai artifact). Built on 2026-10-11 to replace the PowerShell scripts in
-`C:\Agent\scripts` (dispatcher, watchdog, ctl, board GUI server).
-
 ## What is where
 
 | Path | What |
 |---|---|
 | `src/main.ts` | Service entry: timers, file watchers, health loop, API + dashboard servers |
-| `src/orchestrator.ts` | The pass loop: outbox, tasks, picks, relay, helpers, scheduling, runaway stop (port of `dispatcher.ps1`) |
+| `src/orchestrator.ts` | The pass loop: outbox, tasks, picks, relay, helpers, scheduling, runaway stop |
 | `src/rules.ts` | Pure team rules (TASK / DONE / CANCEL / MODEL / TOOLS, DONE verification, auto-done, renumbering) |
 | `src/store.ts` | SQLite store (posts, tasks, archive, agent talk, state) |
-| `src/compat.ts` | Keeps `BOARD.md` / `tasks.json` / `TASKS.md` in sync for older tools |
+| `src/compat.ts` | Readable copies of the board in the data folder (`BOARD.md`, `tasks.json`, `TASKS.md`) |
 | `src/gateway.ts` | In-process OpenClaw gateway client (public SDK; 15-60 ms per call) |
 | `src/health.ts` | Orphaned model runners, hung gateway restart, Ollama start, keep-awake |
 | `src/api.ts` | Team API on 127.0.0.1:8790 (token) used by the agents' native tools |
@@ -31,7 +28,7 @@ Design doc: "Orchestra – Design" (claude.ai artifact). Built on 2026-10-11 to 
 ## Run, test, package
 
 ```bash
-node --no-warnings src/main.ts            # service (on this PC it runs as the "Orchestra" logon task)
+node --no-warnings src/main.ts            # service (the desktop app or the "Orchestra" logon task runs it)
 node --no-warnings src/main.ts --once --dry   # one rehearsal pass on ORCHESTRA_ROOT, no agents touched
 node --no-warnings --test test/*.test.ts  # tests
 cd desktop && npx electron .              # desktop app (reuses a running service)
@@ -51,12 +48,8 @@ Data folder: `ORCHESTRA_ROOT`, else `~/Orchestra`. The launcher `Orchestra.cmd` 
 - Agents never get the `process` tool (it caused a polling loop); stopping a run uses `sessions.abort`, never
   archiving (archiving a job's session disables the job).
 
-## Status (2026-10-11)
+## Platforms
 
-- Phase 1 core service: live on this PC (dispatcher + watchdog tasks disabled), gate passed (109/109).
-- Phase 2 hardware + models: scan, catalog, selection, setup wizard; gate passed (picks today's lineup; 4/4 models tested).
-- Phase 3 app + dashboard: dashboard served by the service, Setup page, team tools plugin, Electron shell.
-- Phase 4 installers: Windows NSIS build; code signing needs a certificate; macOS/Linux targets configured, untested.
-
-Open: Settings page (team size, autonomy), first-run install of Ollama/OpenClaw on a fresh PC, plugin
-dependency install on other PCs, chat window wired to main's chat session, clean-install test on a second PC.
+- Windows: the startup check installs or starts what is missing (Node.js, Ollama, OpenClaw, the agents' tools);
+  NSIS installer. Installers are unsigned unless signing secrets are set.
+- macOS and Linux: build targets are configured but not yet tested.

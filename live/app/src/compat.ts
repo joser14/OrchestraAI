@@ -1,7 +1,6 @@
-// Compatibility with the C:\Agent file layout while Orchestra takes over (phases 1-2):
-// SQLite is the source of truth; BOARD.md / tasks.json / TASKS.md are written from it every pass so the
-// current dashboard, `ctl brief` and the agents' prompts keep working. Posts that others append straight to
-// BOARD.md (the GUI's post box, an agent) are imported; a board an agent overwrote is simply rewritten.
+// Readable copies of the board in the data folder: BOARD.md / tasks.json / TASKS.md, written from SQLite (the
+// source of truth) every pass. Posts appended straight to BOARD.md (an agent) are imported; a board an agent
+// overwrote is simply rewritten.
 import { readFileSync, writeFileSync, existsSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Store } from './store.ts';
@@ -43,8 +42,8 @@ export class Compat {
       } catch {}
     }
     this.store.set('exportedKeys', this.store.posts({ limit: 200 }).map(key));
-    // Posts already on the board were handled by the old dispatcher: only posts after the takeover create tasks
-    // (else every old TASK line - finished, cancelled or archived - would come back as a new task).
+    // Posts already on an imported board were handled before: only newer posts create tasks
+    // (else every earlier TASK line - finished, cancelled or archived - would come back as a new task).
     if (posts) this.store.set('taskEpoch', minuteNow());
     return { posts, tasks };
   }

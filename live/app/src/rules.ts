@@ -1,5 +1,5 @@
-// Pure team rules, ported 1:1 from C:\Agent\scripts\dispatcher.ps1 (every rule there was proven in the
-// 2026-10-11 tests). No I/O here: the orchestrator feeds posts/tasks in and applies what comes back.
+// Pure team rules: TASK / DONE / CANCEL / MODEL / TOOLS lines and the checks on finished tasks.
+// No I/O here: the orchestrator feeds posts/tasks in and applies what comes back.
 
 export type Agent = string;   // 'main' or a worker: worker, worker2 ... worker8 (see team.ts)
 const isWorkerName = (s: string) => /^worker[2-8]?$/.test(s);
@@ -17,14 +17,13 @@ export const COMMANDERS = new Set(['main', 'main-chat', 'user']);
 export const demoteHeadings = (s: string) => s.replace(/^## /gm, '### ');
 
 /** Small models write a literal \n between command lines ("...md\nTASK worker2: ..."). Split only before a
- * command word: Windows paths like C:\Agent\notes also contain \n. */
+ * command word: Windows paths like D:\work\notes also contain \n. */
 export const splitLiteralNewlines = (s: string) => s.replace(/\\n(?=\s*(TASK|MODEL|TOOLS|CANCEL|DONE)\b)/g, '\n');
 
 /** Text copied from instructions / examples instead of a real job. */
 export function isPlaceholderTask(text: string): boolean {
   return text.length < 15 ||
-    /<[^>]+>|what (the worker|to do|it should do)|^(the )?task( text)?$|^\.\.\.$|^JOB$/i.test(text) ||
-    /research used RTX 3080 laptop prices and save notes to C:\\Agent\\work\\rtx-notes\.md/i.test(text);
+    /<[^>]+>|what (the worker|to do|it should do)|^(the )?task( text)?$|^\.\.\.$|^JOB$/i.test(text);
 }
 
 /** A post that only carries command lines is not an answer to the user (used by the relay). */
@@ -51,9 +50,9 @@ export function parseCommands(body: string): ParsedCommands {
 /** Files under the work folder that a task text names (with an extension). */
 export function workPaths(text: string, workDir: string): string[] {
   const out = new Set<string>();
-  // Paths into this PC's work folder (any data root, written with / or \), plus the legacy C:\Agent\work spelling.
+  // Paths into this PC's work folder (any data root, written with / or \).
   const norm = (s: string) => s.replace(/\//g, '\\').toLowerCase();
-  const roots = [...new Set([norm(workDir).replace(/\\+$/, ''), 'c:\\agent\\work'])];
+  const roots = [norm(workDir).replace(/\\+$/, '')];
   const sep = workDir.includes('/') && !workDir.includes('\\') ? '/' : '\\';
   for (const raw of text.split(/[\s"'`,;()<>|*?]+/)) {
     const tok = raw.replace(/[.:]+$/, ''); const n = norm(tok);
@@ -88,7 +87,7 @@ export interface RuleEffects {
 }
 
 /**
- * Apply every post's commands to the task list (idempotent: posts are re-read every pass, like the dispatcher).
+ * Apply every post's commands to the task list (idempotent: posts are re-read every pass).
  * - TASK lines from commanders create tasks (deduped by assignee+text; placeholders ignored; not from before the epoch)
  * - CANCEL only from commanders, and only for a task created no later than the post
  * - DONE closes a task only if every work file it names exists and is non-empty; workers get told what is missing

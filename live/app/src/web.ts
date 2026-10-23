@@ -1,7 +1,6 @@
-// Dashboard server (phase 3): serves the dashboard and its API from the Orchestra process itself, replacing
-// board-gui\server.js. Same endpoints and page, but every answer comes from Orchestra's database, its in-memory
-// gateway state and OpenClaw's transcript files: no `openclaw` CLI processes (they piled up and hung the gateway),
-// and posts go straight into the database (no more appending to BOARD.md and racing the export).
+// Dashboard server: serves the dashboard and its API from the Orchestra process itself. Every answer comes from
+// Orchestra's database, its in-memory gateway state and OpenClaw's transcript files: no `openclaw` CLI processes
+// (they pile up and hang the gateway), and posts go straight into the database.
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, statfsSync, createReadStream, createWriteStream, mkdirSync, unlinkSync, appendFileSync, openSync, readSync, closeSync } from 'node:fs';
 import os, { homedir } from 'node:os';
@@ -246,9 +245,6 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
       { id: 'gateway', name: 'OpenClaw gateway', about: 'the gateway the agents run in', file: newestLog(ocLogs, /\.log$/i) || join(ocLogs, 'orchestra-gateway.log') },
       { id: 'ollama', name: 'Ollama server', about: 'model loading, GPU memory, requests', file: newestLog(olDir, /^server(-\d+)?\.log$/i) || join(olDir, 'server.log') },
       { id: 'ollama-app', name: 'Ollama app', about: 'the Ollama tray app', file: newestLog(olDir, /^app(-\d+)?\.log$/i) || join(olDir, 'app.log') },
-      { id: 'watchdog', name: 'Watchdog', about: 'the old PowerShell watchdog (before Orchestra)', file: L('watchdog.log') },
-      { id: 'health', name: 'Health checks', about: 'the old PowerShell health check', file: L('health.log') },
-      { id: 'backup', name: 'Backups', about: 'nightly backups', file: L('backup.log') },
       // One log per agent: every run of the last 7 days with its thoughts, messages, tool calls and results.
       ...cfg.agents.map((a): LogSource => ({ id: 'agent:' + a, group: 'agents', name: a === 'main' ? 'Composer' : `Worker ${a === 'worker' ? 1 : a.replace('worker', '')}`,
         about: `${a}: every run of the last 7 days, step by step`, mem: () => { try { return fresh(liveJs).agentLog(a, 7); } catch (e: any) { return [`could not read ${a}'s runs: ${e.message}`]; } } })),
@@ -283,7 +279,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
         gpu: g, gateway: { ok: o.gw.healthy, text: o.gw.healthy ? 'Gateway connected (in-process client)' : 'Gateway not answering' },
         cron: Object.values(o.jobs),
         // self-healing actions (health.ts logs them to activity.log): orphaned runners, Ollama / gateway restarts
-        watchdog: tailLines(join(cfg.logDir, 'activity.log'), 4000).filter((l) => /\] \[(orchestra|traveler)\] /.test(l) && /orphaned model runner|not answering|-> restarting|-> starting it|gateway restart failed/i.test(l)).slice(-8).join('\n'),
+        watchdog: tailLines(join(cfg.logDir, 'activity.log'), 4000).filter((l) => /\] \[orchestra\] /.test(l) && /orphaned model runner|not answering|-> restarting|-> starting it|gateway restart failed/i.test(l)).slice(-8).join('\n'),
         dispatch: tail(join(cfg.logDir, 'dispatch.log'), 8) };
     },
     '/api/work': () => ({ dir: cfg.workDir, files: listWork(cfg.workDir), events: o.store.get<any[]>('fileEvents', []).slice(0, 12) }),

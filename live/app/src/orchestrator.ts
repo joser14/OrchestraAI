@@ -1,6 +1,4 @@
-// The team's pass loop: a port of dispatcher.ps1 that runs inside one long-lived process.
-// Every rule here was proven in the 2026-10-11 tests; the difference is a few 20-60 ms gateway calls per pass
-// instead of dozens of 3-20 s CLI processes.
+// The team's pass loop, inside one long-lived process: a few 20-60 ms gateway calls per pass, no CLI processes.
 import { existsSync, readFileSync, statSync, unlinkSync, appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -461,7 +459,7 @@ export class Orchestrator {
     const history = this.store.get<string[]>('history', []).filter((h) => now.getTime() - Date.parse(h) < 3600000);
     if (history.length >= this.cfg.maxPerHour) return;
 
-    // main: continuous passes; picks its own rest with "ctl sleep N"; a post from the user wakes it early.
+    // main: continuous passes; picks its own rest with team_sleep; a post from the user wakes it early.
     const lastRun = this.store.get<Record<string, string>>('lastRun', {});
     const lastMainStart = lastRun.main ? Date.parse(lastRun.main) : 0;
     const froms = posts.map((p) => p.from);

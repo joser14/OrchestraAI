@@ -1,4 +1,4 @@
-# Orchestra desktop installer (phase 4). Windows first: NSIS per-user installer, start menu + desktop shortcut,
+# Orchestra desktop installer. Windows first: NSIS per-user installer, start menu + desktop shortcut,
 # optional start at login. The Orchestra service (src/, web/, lib/, plugin/) ships as an extra resource and runs
 # inside Electron's own Node 24 (utilityProcess), so the user does not need Node.js installed for Orchestra itself.
 appId: ai.orchestra.desktop

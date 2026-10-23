@@ -1,5 +1,4 @@
 // SQLite store (node:sqlite, built into Node 24): board posts, tasks, agent talk, small key/value state.
-// Replaces board\BOARD.md, board\tasks.json, board\talk.jsonl and logs\dispatch-state.json.
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';

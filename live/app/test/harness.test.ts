@@ -10,12 +10,11 @@ import { workerNames, applyTeamSize, clampWorkers, isWorker } from '../src/team.
 import { Store } from '../src/store.ts';
 import { brief, commitHandled, needsMain } from '../src/brief.ts';
 
-test('workPaths: legacy C:\\Agent\\work, this PC\'s folder with / or \\, trailing punctuation', () => {
-  assert.deepEqual(workPaths('saved as C:\\Agent\\work\\planets.md, then a PDF.', 'C:\\Agent\\work'), ['C:\\Agent\\work\\planets.md']);
+test('workPaths: this PC\'s work folder with / or \\, trailing punctuation', () => {
+  assert.deepEqual(workPaths('saved as D:\\Team\\work\\planets.md, then a PDF.', 'D:\\Team\\work'), ['D:\\Team\\work\\planets.md']);
   assert.deepEqual(workPaths('save to /home/a/Orchestra/work/notes/x.md.', '/home/a/Orchestra/work'), ['/home/a/Orchestra/work/notes/x.md']);
-  assert.deepEqual(workPaths('save as C:\\Agent\\work\\x.md', 'C:\\Users\\b\\Orchestra\\work'), ['C:\\Users\\b\\Orchestra\\work\\x.md']);
   assert.deepEqual(workPaths('save as C:/Users/b/Orchestra/work/y.csv', 'C:\\Users\\b\\Orchestra\\work'), ['C:\\Users\\b\\Orchestra\\work\\y.csv']);
-  assert.deepEqual(workPaths('no file named here', 'C:\\Agent\\work'), []);
+  assert.deepEqual(workPaths('no file named here', 'D:\\Team\\work'), []);
 });
 
 test('team size: 1-8 workers, names, in-place update, commands for worker5', () => {
@@ -24,11 +23,11 @@ test('team size: 1-8 workers, names, in-place update, commands for worker5', () 
   const cfg: any = { workers: ['worker', 'worker2'], agents: ['main', 'worker', 'worker2'] }; const ref = cfg.workers;
   applyTeamSize(cfg, 4); assert.equal(cfg.workers, ref); assert.deepEqual(cfg.agents, ['main', 'worker', 'worker2', 'worker3', 'worker4']);
   assert.ok(isWorker('worker8') && !isWorker('worker9') && !isWorker('main'));
-  assert.deepEqual(parseCommands('TASK worker5: write C:\\Agent\\work\\a.md').tasks, [{ assignee: 'worker5', text: 'write C:\\Agent\\work\\a.md' }]);
+  assert.deepEqual(parseCommands('TASK worker5: write D:\\Team\\work\\a.md').tasks, [{ assignee: 'worker5', text: 'write D:\\Team\\work\\a.md' }]);
 });
 
 function fakeTeam() {
-  const root = mkdtempSync(join(tmpdir(), 'trav-')); mkdirSync(join(root, 'logs')); mkdirSync(join(root, 'work'));
+  const root = mkdtempSync(join(tmpdir(), 'orch-')); mkdirSync(join(root, 'logs')); mkdirSync(join(root, 'work'));
   const store = new Store(join(root, 't.db'));
   const o: any = {
     store, cfg: { workDir: join(root, 'work'), logDir: join(root, 'logs'), workers: ['worker', 'worker2'], agents: ['main', 'worker', 'worker2'], aliases: { fast: 'x' }, maxTempC: 86, maxAttempts: 3 },
@@ -69,8 +68,8 @@ test('agenda: worker results and questions are actions; progress notes are chatt
 test('worker brief: its task, teammates, and how to report', () => {
   const { o, store } = fakeTeam(); const now = new Date().toISOString();
   store.saveTasks([
-    { id: 'T1', assignee: 'worker', text: 'write C:\\Agent\\work\\a.md', status: 'open', attempts: 1, by: 'main', created: now, updated: now },
-    { id: 'T2', assignee: 'worker2', text: 'write C:\\Agent\\work\\b.md', status: 'open', attempts: 0, by: 'main', created: now, updated: now },
+    { id: 'T1', assignee: 'worker', text: 'write D:\\Team\\work\\a.md', status: 'open', attempts: 1, by: 'main', created: now, updated: now },
+    { id: 'T2', assignee: 'worker2', text: 'write D:\\Team\\work\\b.md', status: 'open', attempts: 0, by: 'main', created: now, updated: now },
   ]);
   const b = brief(o, 'worker');
   assert.match(b, /YOUR TASK ===\nT1:/); assert.match(b, /worker2: idle on T2/); assert.match(b, /team_done/);

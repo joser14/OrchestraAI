@@ -1,5 +1,4 @@
-// Paths and tunables. Phase 1 runs in "compat" mode on the existing C:\Agent folder (same board, outbox, work,
-// inbox and agent jobs), so it can replace the dispatcher + watchdog without touching the agents.
+// Paths and tunables: the data folder layout, the team, timings and model aliases.
 import { join } from 'node:path';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -28,11 +27,11 @@ export function defaultRoot(): string {
 export function loadConfig(root = defaultRoot()): Config {
   for (const d of ['board/outbox', 'work', 'inbox', 'logs', 'models', 'orchestra']) mkdirSync(join(root, d), { recursive: true });
   const aliasesFile = join(root, 'models', 'aliases.json');
-  // The file is the truth once it exists (Setup and Fix keep it to models this PC has); the old built-in names
-  // are only a starting point for a folder that never had one.
+  // The file is the truth once it exists (Setup and Fix keep it to models this PC has); these are the names Setup
+  // gives its tested copies, a starting point for a folder that never had one.
   let aliases: Record<string, string> = {
-    smart: 'ollama/qwen3-abl-agent:latest', fast: 'ollama/qwen3-abl-fast:latest',
-    vision: 'ollama/qwen35-abl-vision:latest', tiny: 'ollama/qwen3-abl-tiny:latest',
+    smart: 'ollama/orch-smart:latest', fast: 'ollama/orch-fast:latest',
+    vision: 'ollama/orch-vision:latest', tiny: 'ollama/orch-tiny:latest',
   };
   if (existsSync(aliasesFile)) { try { aliases = JSON.parse(readFileSync(aliasesFile, 'utf8').replace(/^\uFEFF/, '')); } catch {} }
   return {

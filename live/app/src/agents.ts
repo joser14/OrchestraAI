@@ -1,4 +1,4 @@
-// Agent definitions, owned by Orchestra (replaces set-schedules.ps1): the instructions and tool allow-lists of the
+// Agent definitions, owned by Orchestra: the instructions and tool allow-lists of the
 // main / worker / worker2 jobs. Team actions are native tools from the orchestra-team plugin, so nothing here
 // asks a small model to type shell command lines.
 import type { Config } from './config.ts';
@@ -86,12 +86,12 @@ export function agentSpecs(cfg: Config): Record<string, { message: string; tools
 }
 
 /** Team rules every agent loads at the start of each session (its workspace AGENTS.md). Must agree with the job
- * instructions: an old file telling agents to run `powershell ... ctl.ps1 brief` overrode the new tools. */
+ * instructions (a workspace file that disagrees with the tools wins over them). */
 export const teamRules = (cfg: Config) => `# Team rules (all agents)
 
 Team: \`main\` (the brain), ${cfg.workers.map((w) => `\`${w}\``).join(', ')}. Human boss: \`user\` (the person using Orchestra).
 
-- Start every run by calling the **team_brief** tool. Do not read BOARD.md and do not run ctl.ps1.
+- Start every run by calling the **team_brief** tool. Do not read BOARD.md.
 - All team communication happens on the board: **team_post** (to: user, main, a worker or all) and **team_say** both show there.
 - Workers finish a task with **team_done** (task id + files made). Questions go to main with team_post.
 - main assigns work with **team_assign** (one concrete job, naming the file), cancels with **team_cancel**,

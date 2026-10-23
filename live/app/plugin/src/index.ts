@@ -1,4 +1,4 @@
-// orchestra-team: the team's commands as native agent tools (replaces typing `powershell ... ctl.ps1 ...` lines).
+// orchestra-team: the team's commands as native agent tools.
 // Each tool calls the Orchestra service's local API. The calling agent comes from the runtime tool context
 // (toolContext.agentId), never from the model, so an agent cannot post or assign as someone else.
 import { Type, type TSchema } from "typebox";

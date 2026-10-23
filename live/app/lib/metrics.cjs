@@ -2,7 +2,7 @@
 //  - tokens: every model call's usage from OpenClaw's per-agent transcript databases
 //  - speed: output tokens / time since the previous event in that session (includes prompt processing,
 //    so it is "effective" tokens per second as the agents experience it)
-//  - gpu: logs\gpu-history.jsonl, one sample per dispatcher pass
+//  - gpu: logs\gpu-history.jsonl, one sample per pass
 const { DatabaseSync } = require('node:sqlite');
 const zlib = require('zlib'), fs = require('fs'), os = require('os'), path = require('path');
 // main + every worker that has an OpenClaw agent folder (the team can have 1-8 workers)

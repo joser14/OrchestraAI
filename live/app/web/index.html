@@ -1975,7 +1975,7 @@ function stackedChart(box, buckets, series, unit = 'tokens') {
 }
 const legend = (id, series) => $(id).replaceChildren(...series.map(([l, c]) => { const s = el('span'); const i = el('i'); i.style.background = cssv(c); s.append(i, document.createTextNode(l)); return s; }));
 function lineChart(box, pts, field, unit, fixedMax) {
-  if (!pts.length) { box.replaceChildren(el('div', 'sub', 'No samples yet: recorded once a minute while the dispatcher runs.')); return; }
+  if (!pts.length) { box.replaceChildren(el('div', 'sub', 'No samples yet: recorded once a minute while Orchestra runs.')); return; }
   const max = fixedMax || niceMax(Math.max(...pts.map((p) => p[field])));
   const { svg, P, pw, ph } = frame(box, max, (v) => (field === 'used' ? (v / 1024).toFixed(1) : Math.round(v)));
   const t0 = Date.parse(pts[0].at), t1 = Math.max(t0 + 1, Date.parse(pts[pts.length - 1].at));

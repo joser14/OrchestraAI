@@ -12,9 +12,6 @@ import { testImageModel } from './imagegen.ts';
 import { getSettings } from './settings.ts';
 
 export const ROLE_ALIAS: Record<string, string> = { worker: 'fast', vision: 'vision', chores: 'tiny' };
-/** Names the C:\Agent scripts registered models under, before Orchestra (models\*.Modelfile). */
-export const LEGACY: Record<string, string> = { smart: 'qwen3-abl-agent', fast: 'qwen3-abl-fast', vision: 'qwen35-abl-vision', tiny: 'qwen3-abl-tiny', mini: 'qwen35-abl-mini',
-  granite: 'granite-abl', llama: 'llama32-abl', micro: 'qwen35-abl-micro', lfm: 'lfm25-abl', vl: 'qwen3-abl-vl', hermes: 'hermes3-abl' };
 export interface LibProgress { alias: string; phase: string; pct: number; msg: string; done: boolean; error?: string }
 
 let hwCache: { at: number; hw: Hardware | null } = { at: 0, hw: null };
@@ -36,7 +33,7 @@ export async function libraryView(o: Orchestrator) {
     capacityGB: cap, budgetGB: +budget.toFixed(2), ctx,
     models: allModels(o.store.get<CatalogModel[]>('customModels', [])).map((m) => {
       const r = results.find((x) => x.tag === m.tag);
-      const names = [...new Set([r?.local || `orch-${m.alias}`, `orch-${m.alias}`, `trav-${m.alias}`, ...(LEGACY[m.alias] ? [LEGACY[m.alias]] : [])])];
+      const names = [...new Set([r?.local || `orch-${m.alias}`, `orch-${m.alias}`])];
       const status = m.tested === 'fail' && !r ? 'failed' : r ? (r.tool === 'pass' ? 'tested' : 'failed') : inst.has(m.tag) || inst.has(m.tag + ':latest') ? 'downloaded' : 'not downloaded';
       const need = needGB(m, ctx);
       return { alias: m.alias, tag: m.tag, family: m.family, params: m.params, sizeGB: m.sizeGB, needGB: need, fits: need <= budget,

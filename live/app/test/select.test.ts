@@ -1,5 +1,5 @@
-// Phase 2 gate: on this laptop (RTX 3080 Laptop, 8 GB) the selector must pick today's lineup; other machines
-// get sensible lineups per the design table.
+// Lineup selection: an 8 GB laptop GPU gets the proven small lineup; other machines get sensible lineups per the
+// design table.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { selectLineup, needGB, lightWanted } from '../src/select.ts';

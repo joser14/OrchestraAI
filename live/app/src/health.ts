@@ -1,4 +1,4 @@
-// Self-healing, ported from watchdog.ps1 / dispatcher.ps1 and made cross-platform:
+// Self-healing (cross-platform):
 //  - orphaned model runners (llama-server left behind when Ollama dies; they held 6 GB with nothing loaded)
 //  - hung gateway (port open but not answering; agents silently stopped for 10+ min) -> restart
 //  - Ollama not answering -> start it

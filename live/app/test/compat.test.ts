@@ -7,7 +7,7 @@ import { Store } from '../src/store.ts';
 import { Compat } from '../src/compat.ts';
 
 test('a post appended to BOARD.md by the GUI is never overwritten by the export', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'trav-compat-'));
+  const dir = mkdtempSync(join(tmpdir(), 'orch-compat-'));
   writeFileSync(join(dir, 'BOARD.md'), '# Agent Board\n\n## [2026-10-11 10:00] user -> main\nfirst\n');
   const store = new Store(':memory:'); const c = new Compat(store, dir);
   c.importInitial(); c.exportAll([]);
@@ -21,7 +21,7 @@ test('a post appended to BOARD.md by the GUI is never overwritten by the export'
 });
 
 test('takeover: old TASK lines on the board never become tasks; new ones do', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'trav-compat-'));
+  const dir = mkdtempSync(join(tmpdir(), 'orch-compat-'));
   writeFileSync(join(dir, 'BOARD.md'), '# B\n\n## [2026-10-10 09:00] main -> all\nTASK worker: an old finished task from yesterday\n');
   const store = new Store(':memory:'); const c = new Compat(store, dir);
   c.importInitial();

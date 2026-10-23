@@ -1,4 +1,4 @@
-// Phase 2: measure the PC. GPU vendor/model/VRAM (nvidia-smi, rocm-smi, Apple unified memory, Windows WMI
+// Measure the PC: GPU vendor/model/VRAM (nvidia-smi, rocm-smi, Apple unified memory, Windows WMI
 // fallback), RAM, CPU, free disk, and whether Ollama is installed and can use the GPU.
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';

@@ -11,7 +11,6 @@ import { parallelPlan, modelCapacityGB } from './select.ts';
 import { scanHardware, type Hardware } from './hardware.ts';
 import { loadedGB, type ModelResult } from './setup.ts';
 import { getSettings } from './settings.ts';
-import { LEGACY } from './library.ts';
 import { startOllama } from './health.ts';
 import { MAX_WORKERS } from './team.ts';
 const run = promisify(execFile);
@@ -19,12 +18,12 @@ const run = promisify(execFile);
 let hwCache: { at: number; hw: Hardware | null } = { at: 0, hw: null };
 export async function hardware() { if (!hwCache.hw || Date.now() - hwCache.at > 120000) hwCache = { at: Date.now(), hw: await scanHardware() }; return hwCache.hw!; }
 
-/** The catalog model behind a job's model id (ollama/orch-fast:latest, older trav-fast, or a legacy name like qwen3-abl-fast). */
+/** The catalog model behind a job's model id (e.g. ollama/orch-fast:latest). */
 export function catalogOf(o: Orchestrator, modelId: string): CatalogModel | null {
   const local = String(modelId || '').replace(/^ollama\//, '').replace(/:latest$/, '');
   const custom = o.store.get<CatalogModel[]>('customModels', []);
   const r = o.store.get<ModelResult[]>('modelResults', []).find((x) => x.local === local);
-  return allModels(custom).find((m) => m.tag === r?.tag || `orch-${m.alias}` === local || `trav-${m.alias}` === local || LEGACY[m.alias] === local) ?? null;
+  return allModels(custom).find((m) => m.tag === r?.tag || `orch-${m.alias}` === local) ?? null;
 }
 
 /** Current OLLAMA_NUM_PARALLEL for the user (Windows: HKCU\Environment), null when unset (Ollama picks). */

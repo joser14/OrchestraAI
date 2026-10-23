@@ -1,4 +1,4 @@
-// Orchestra service entry point (phase 1: replaces the board dispatcher + watchdog scheduled tasks).
+// Orchestra service entry point: the pass loop, health checks, the team API and the dashboard.
 //   node src/main.ts            run the service
 //   node src/main.ts --once     one pass, then exit (diagnostics)
 import '../lib/hide-windows.cjs';   // first: every process this service starts is windowless (Windows)
@@ -45,7 +45,7 @@ const o = new Orchestrator(cfg, store, gw, { dryRun: dry });
 const usage = new UsageIndex(store, cfg.agents, cfg.logDir);   // hourly metrics rollups (all-time history)
 
 const first = o.compat.importInitial();
-if (first.posts || first.tasks) o.log(`took over the board: imported ${first.posts} post(s) and ${first.tasks} task(s)`);
+if (first.posts || first.tasks) o.log(`board: imported ${first.posts} post(s) and ${first.tasks} task(s) from BOARD.md`);
 o.log(`Orchestra service started (pid ${process.pid})`);
 // New instructions, or a team size whose agents do not exist yet: bring OpenClaw in line (creates what is missing).
 // Retried from the health check until it succeeds (the gateway may still be starting when the service starts).
@@ -117,7 +117,7 @@ const soon = () => { if (debounce) clearTimeout(debounce); debounce = setTimeout
 for (const p of [cfg.outbox, cfg.boardDir]) { try { watch(p, (_e, f) => { if (!f || /\.(md|txt)$/i.test(String(f)) && !/^(BOARD|TASKS)\.md|\.tmp$/i.test(String(f))) soon(); }); } catch {} }
 
 if (!dry) startApi(o, soon);   // team API for the orchestra-team plugin's tools
-if (!dry) startWeb(o, { soon, webDir: join(import.meta.dirname, '..', 'web'), setup: new Setup(store, gw, cfg, join(import.meta.dirname, '..', 'plugin')), library: new Library(o), usage });   // the dashboard (replaces board-gui\server.js)
+if (!dry) startWeb(o, { soon, webDir: join(import.meta.dirname, '..', 'web'), setup: new Setup(store, gw, cfg, join(import.meta.dirname, '..', 'plugin')), library: new Library(o), usage });   // the dashboard
 await tick();
 // Every 30 s, or every 10 s while an agent runs: the next step (main reviewing a report, a queued post) starts
 // soon after a run ends instead of up to 30 s later.

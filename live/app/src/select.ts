@@ -1,4 +1,4 @@
-// Phase 2: build the model lineup for this PC.
+// Build the model lineup for this PC.
 // Fit rule (design doc): weights + KV cache for the context + ~0.5 GB overhead <= 90% of the VRAM available to
 // models (total VRAM minus what other programs hold). No usable GPU -> CPU lineup with a warning.
 import type { Hardware } from './hardware.ts';

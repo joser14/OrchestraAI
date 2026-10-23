@@ -1,4 +1,4 @@
-// Phase 2: first-run setup. Scan -> lineup -> download -> tool test -> speed test -> register in OpenClaw.
+// First-run setup. Scan -> lineup -> download -> tool test -> speed test -> register in OpenClaw.
 // Everything goes through Ollama's HTTP API and the gateway client; progress is kept in the store for the
 // Setup page. A model that fails the tool test is recorded and never offered again.
 import type { Store } from './store.ts';
@@ -16,7 +16,7 @@ const OLLAMA = 'http://127.0.0.1:11434';
 export interface ModelResult { tag: string; local: string; tool: 'pass' | 'fail'; genTps?: number; promptTps?: number; at: string; error?: string }
 export interface SetupProgress { phase: string; step: string; pct: number; done: boolean; error?: string; log: string[]; results: ModelResult[]; lineup?: any }
 
-// Local copies are "orch-<alias>"; models made before the rename are "trav-<alias>" and are still recognised.
+// Local copies are "orch-<alias>".
 const localName = (m: CatalogModel) => `orch-${m.alias}`;
 async function ollama(path: string, body?: unknown, timeoutMs = 600000): Promise<any> {
   const r = await fetch(OLLAMA + path, { method: body ? 'POST' : 'GET', body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(timeoutMs) });

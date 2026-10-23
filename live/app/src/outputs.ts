@@ -1,4 +1,4 @@
-// Things written for others each pass: logs\status.json (ctl status/brief + dashboard), GPU history (Metrics),
+// Things written for others each pass: logs\status.json (dashboard), GPU history (Metrics),
 // the OpenClaw "Board feed" chats (chat.inject: transcript only, no model run), and hourly housekeeping.
 import { appendFileSync, existsSync, statSync, readFileSync, writeFileSync, readdirSync, renameSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join, basename } from 'node:path';

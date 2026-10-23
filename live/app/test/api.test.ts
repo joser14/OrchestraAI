@@ -11,6 +11,6 @@ test('duplicate-job detector catches the six planets jobs the brain assigned on 
 });
 
 test('different jobs are not duplicates', () => {
-  assert.ok(similar('List the 8 planets in order from the sun', 'Summarize used RTX 3080 laptop prices into a table') < 0.2);
-  assert.ok(similar('Write the squares of 1 to 12 to C:\\Agent\\work\\squares.md', 'Write the days of the week to C:\\Agent\\work\\days.md') < 0.6);
+  assert.ok(similar('List the 8 planets in order from the sun', 'Summarize used laptop GPU prices into a table') < 0.2);
+  assert.ok(similar('Write the squares of 1 to 12 to D:\\Team\\work\\squares.md', 'Write the days of the week to D:\\Team\\work\\days.md') < 0.6);
 });

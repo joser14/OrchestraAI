@@ -1,4 +1,4 @@
-// Context size, applied now: rebuild the team's local model copies (orch-* / trav-*) with the new num_ctx - a fast
+// Context size, applied now: rebuild the team's local model copies (orch-*) with the new num_ctx - a fast
 // step, the weights are shared - and tell OpenClaw the new context window for those models. Models the team uses
 // directly (not Orchestra's copies) are left alone and reported, so the user's own models are never changed.
 import type { Gateway } from './gateway.ts';
@@ -9,7 +9,7 @@ async function ollama(path: string, body: unknown, timeoutMs = 120000) {
   if (!r.ok) throw new Error(`Ollama ${path}: HTTP ${r.status} ${(await r.text()).slice(0, 160)}`);
   return r.json().catch(() => ({}));
 }
-const ours = (name: string) => /^(orch|trav)-/.test(name);
+const ours = (name: string) => /^orch-/.test(name);
 
 export async function applyContext(gw: Gateway, ctx: number, log: (m: string) => void): Promise<{ changed: string[]; skipped: string[] }> {
   const jobs = await gw.jobs();
