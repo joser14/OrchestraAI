@@ -949,6 +949,8 @@
         <div id="ocGroups"><div class="sub">Loading…</div></div>
         <div class="acc-lbl">MCP servers <span class="sub">each connected server and its tools &middot; add servers in <a href="#settings">Settings</a></span></div>
         <div id="ocMcp"><div class="sub">Loading…</div></div>
+        <div class="acc-lbl">Schedules · OpenClaw <span class="sub">jobs OpenClaw runs on a timer; switch them, or run one now</span></div>
+        <div id="ocJobs"><div class="sub">Loading…</div></div>
         <div class="acc-lbl">Skills · OpenClaw</div>
         <details class="acc" id="skillsAcc"><summary><b>🧩 OpenClaw skills</b><span class="sub" id="skillsSum">ready-made know-how the agents can load (opens the list)</span></summary>
           <div class="acc-body" id="ocSkills"><div class="sub">Loading…</div></div></details>
@@ -1977,6 +1979,27 @@ $('instBtn').onclick = async () => {
   }
   $('instBtn').disabled = false; loadInstallable();
 };
+// Schedules: OpenClaw's timed jobs, each with a switch and "run now" (Orchestra's board jobs protected)
+async function loadSchedules() {
+  const r = await fetch('/api/schedules').then((x) => x.json()).catch(() => null);
+  if (!r || !r.jobs) { $('ocJobs').replaceChildren(el('div', 'sub', 'Could not reach OpenClaw.')); return; }
+  const open = keepOpen($('ocJobs')), when = (ms) => (ms ? new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
+  $('ocJobs').replaceChildren(...r.jobs.map((j) => {
+    const state = !j.enabled ? 'off' : j.errors ? `failing (${j.errors})` : j.last || 'not run yet';
+    const [d, body] = acc('j:' + j.id, open, (j.protected ? '⚙ ' : '⏱ ') + j.name, `${j.when}${j.agent ? ' · ' + j.agent : ''} · ${state}`);
+    const dl = el('dl', 't-dl');
+    for (const [k, v] of [['Last run', `${when(j.lastAt)}${j.last ? ' · ' + j.last : ''}`], ['Next run', j.protected ? 'when there is work' : when(j.nextAt)]]) dl.append(el('dt', null, k), el('dd', null, v));
+    body.append(dl);
+    if (j.lastError) body.append(el('div', 'sub', 'Last error: ' + j.lastError));
+    if (j.protected) { body.append(el('div', 'sub', 'Orchestra starts this agent itself; it cannot be switched off here.')); return d; }
+    const row = el('div', 't-row'); const l = el('label', 'chk'); const cb = el('input'); cb.type = 'checkbox'; cb.checked = j.enabled;
+    cb.onchange = async () => { try { toast((await postJSON('/api/schedules/toggle', { id: j.id, enabled: cb.checked })).msg); } catch (e) { toast(e.message, true); } loadSchedules(); };
+    l.append(cb, document.createTextNode(' on'));
+    const run = el('button', 'small ghost', 'Run now'); run.type = 'button';
+    run.onclick = async () => { run.disabled = true; try { toast((await postJSON('/api/schedules/run', { id: j.id })).msg); } catch (e) { toast(e.message, true); } run.disabled = false; setTimeout(loadSchedules, 3000); };
+    row.append(l, run); body.append(row); return d;
+  }));
+}
 async function loadSkills() {
   const c = await fetch('/api/tools/catalog?skills=1').then((r) => r.json()).catch(() => null);
   const list = (c && c.skills) || [];
@@ -1994,7 +2017,7 @@ $('ctSave').onclick = async () => {
   catch (e) { $('ctMsg').textContent = e.message; }
 };
 async function loadTools() {
-  loadOcTools(); loadInstallable();
+  loadOcTools(); loadInstallable(); loadSchedules();
   const w = await fetch('/api/work').then((r) => r.json()).catch(() => null);
   const inb = await fetch('/api/inbox').then((r) => r.json()).catch(() => null);
   const srcs = (w && w.files || []).filter((f) => /\.(md|markdown|txt|html?)$/i.test(f.path));

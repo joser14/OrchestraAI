@@ -273,6 +273,18 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
     '/api/history': async () => { try { const { stdout } = await run('git', ['-C', cfg.workDir, 'log', '--pretty=format:%h|%ad|%s', '--date=format:%m-%d %H:%M', '-n', '12', '--name-only'], { windowsHide: true });
       const commits: any[] = []; let cur: any = null; for (const l of stdout.split('\n')) { const m = /^([0-9a-f]{7,})\|(.+?)\|(.*)$/.exec(l); if (m) { cur = { hash: m[1], when: m[2], msg: m[3], files: [] }; commits.push(cur); } else if (cur && l.trim()) cur.files.push(l.trim()); } return { commits }; } catch { return { commits: [] }; } },
     // Desktop notifications (desktop/main.cjs polls this): the composer's replies to jr after post id `since`.
+    // Tools page > Schedules: every OpenClaw scheduled job (Orchestra's own board jobs are listed but protected)
+    '/api/schedules': async () => {
+      const every = (ms: number) => (ms % 86400000 === 0 ? `every ${ms / 86400000} day${ms === 86400000 ? '' : 's'}` : ms % 3600000 === 0 ? `every ${ms / 3600000} h` : `every ${Math.round(ms / 60000)} min`);
+      const jobs = await o.gw.jobs();
+      return { jobs: jobs.map((j: any) => {
+        const s = j.schedule || {}, st = j.state || {};
+        const board = /-board$/.test(String(j.name || ''));
+        return { id: j.id, name: j.name, agent: j.agentId || '', enabled: j.enabled !== false, protected: board,
+          when: board ? 'started by Orchestra when there is work' : s.kind === 'every' ? every(Number(s.everyMs) || 0) : s.kind === 'cron' ? `cron ${s.expr}` : s.kind || '',
+          last: st.lastStatus || st.lastRunStatus || '', lastAt: st.lastRunAtMs || 0, nextAt: board ? 0 : st.nextRunAtMs || 0, errors: st.consecutiveErrors || 0, lastError: String(st.lastError || '').slice(0, 200) };
+      }).sort((a: any, b: any) => Number(a.protected) - Number(b.protected) || String(a.name).localeCompare(String(b.name))) };
+    },
     // Memory page: the team's memory files (memory.ts keeps it to that fixed set)
     '/api/memory': () => ({ files: listMemory(cfg) }),
     '/api/memory/file': (q) => readMemory(cfg, String(q.get('id') || '')),
@@ -563,6 +575,18 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
       const tools = (j.tools || []).slice(0, 200).map((t: any) => (typeof t === 'string' ? t : t?.name || String(t)));
       o.store.set('mcpTools', { ...o.store.get<Record<string, any>>('mcpTools', {}), [name]: { tools, at: new Date().toISOString() } });   // Tools page shows them
       return { ok: true, msg: `Connected: ${s.tools} tool(s)${s.resources ? ', resources' : ''}${s.prompts ? ', prompts' : ''}.${diag ? ` Notes: ${diag.slice(0, 200)}` : ''}`, tools: tools.slice(0, 50) };
+    },
+    '/api/schedules/toggle': async (b) => {
+      const j = (await o.gw.jobs()).find((x: any) => x.id === String(b.id || '')); if (!j) throw new Error('no such job');
+      if (/-board$/.test(String(j.name || ''))) throw new Error(`${j.name} is how Orchestra starts ${j.agentId}: switching it off would stop that agent`);
+      await o.gw.updateJob(j.id, { enabled: !!b.enabled }); act(`schedule ${j.name} ${b.enabled ? 'on' : 'off'}`);
+      return { ok: true, msg: `${j.name} ${b.enabled ? 'switched on' : 'switched off'}.` };
+    },
+    '/api/schedules/run': async (b) => {
+      const j = (await o.gw.jobs()).find((x: any) => x.id === String(b.id || '')); if (!j) throw new Error('no such job');
+      if (/-board$/.test(String(j.name || ''))) throw new Error('Orchestra starts its own agents: use Wake composer, or post a request');
+      await o.gw.runJob(j.id); act(`schedule ${j.name}: run now`);
+      return { ok: true, msg: `${j.name} started.` };
     },
     '/api/memory/save': (b) => { const r = saveMemory(cfg, String(b.id || ''), String(b.text ?? '')); act(`memory: saved ${b.id}`); return r; },
     // Tools page > Agent tools: switch an OpenClaw tool group on or off for one agent (built-in ones stay on).
