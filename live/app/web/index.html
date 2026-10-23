@@ -1146,6 +1146,8 @@
       <h2>OpenClaw <span class="sub">how each agent runs; saved straight into its OpenClaw job</span></h2>
       <div class="set-row"><div class="lbl"><b>Interpret requests</b><div class="sub">before main plans, one quick extra step rewrites your latest message as one clear instruction ("you missed one" &rarr; what exactly to fix). Adds about 5&ndash;15 s, only when there is a conversation to read.</div></div>
         <input type="checkbox" class="switch" id="setInterpret"></div>
+      <div class="set-row"><div class="lbl"><b>Fast path for simple requests</b><div class="sub">a one-step ask (write, summarize, translate, convert…) goes straight to a free worker and the result comes back to you directly, without the composer's planning pass. Jobs with steps, research or comparisons still go through the composer.</div></div>
+        <input type="checkbox" class="switch" id="setFast"></div>
       <div class="set-row"><div class="lbl"><b>Review before done</b><div class="sub">finished tasks wait in a Review column on the Tasks page for your Approve or Request changes; the composer reports only approved work</div></div>
         <input type="checkbox" class="switch" id="setReview"></div>
       <div class="set-row"><div class="lbl"><b>Learn from conversations</b><div class="sub">after the team answers you and is idle, keep lasting preferences, facts and what worked in memory/learned.md (Memory page); agents get the most relevant entries</div></div>
@@ -2525,6 +2527,7 @@ function renderOpenClaw() {
   $('setInterpret').checked = s.interpret !== false;
   $('setLearn').checked = s.learn !== false;
   $('setReview').checked = !!s.review;
+  $('setFast').checked = s.fastPath !== false;
   $('setLight').checked = !!s.lightContext;
   document.querySelectorAll('#setRun button').forEach((b) => b.classList.toggle('on', +b.dataset.v === (s.runMinutes || 8)));
   const oc = s.openclaw || {};
@@ -2551,6 +2554,7 @@ function setLook(v) {
 document.querySelectorAll('#setLook button').forEach((b) => { b.onclick = () => { setLook(b.dataset.v); toast('Look: ' + b.textContent); }; });
 setLook(document.documentElement.dataset.look === '8bit' ? '8bit' : 'classic');
 $('setNotify').onchange =(e) => saveSetting({ notify: e.target.checked }, 'Desktop notifications ' + (e.target.checked ? 'on' : 'off'));
+$('setFast').onchange = (e) => saveSetting({ fastPath: e.target.checked }, 'Fast path ' + (e.target.checked ? 'on' : 'off'));
 $('setReview').onchange = (e) => saveSetting({ review: e.target.checked }, 'Review before done ' + (e.target.checked ? 'on' : 'off'));
 $('setLearn').onchange = (e) => saveSetting({ learn: e.target.checked }, 'Learn from conversations ' + (e.target.checked ? 'on' : 'off'));
 $('setInterpret').onchange = (e) => saveSetting({ interpret: e.target.checked }, 'Interpret requests ' + (e.target.checked ? 'on' : 'off'));

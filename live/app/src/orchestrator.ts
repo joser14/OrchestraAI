@@ -10,13 +10,14 @@ import type { Store } from './store.ts';
 import type { Gateway } from './gateway.ts';
 import { Compat, atomicWrite } from './compat.ts';
 import { ingestOutbox } from './outbox.ts';
-import { applyPosts, autoDone, shouldRenumber, parseCommands, minuteOf, COMMANDERS, normalise, type Task, type Post, type Stat } from './rules.ts';
+import { applyPosts, autoDone, shouldRenumber, parseCommands, minuteOf, COMMANDERS, normalise, expectedFiles, type Task, type Post, type Stat } from './rules.ts';
 import { lastAssistantText } from './transcripts.ts';
 import { KeepAwake } from './health.ts';
 import { getSettings } from './settings.ts';
 import { agentCost } from './usage.ts';
 import { snapshotWork } from './outputs.ts';
 import { readLearned, writeLearned, applyChanges, askModel, learnPrompt } from './learn.ts';
+import { isSimpleRequest, judgeSimple, fastTaskText } from './fastpath.ts';
 import { verifyFiles, needsInterpret, conversationBefore, folderSnapshot, buildPrompt, parseInterpretation, callModel, type Interpretation } from './interpret.ts';
 const run = promisify(execFile);
 
@@ -120,6 +121,7 @@ export class Orchestrator {
       if (!v.problems.length) {
         this.taskCost(t, now);
         // review gate (Settings, off by default): passed the check, now waits for jr's Approve / Request changes
+        if (t.by === 'fastpath' && !getSettings(this.store).review) { this.reportFast(t, posts); continue; }
         if (getSettings(this.store).review && t.by !== 'automation') {
           t.status = 'review' as any; t.updated = now.toISOString();
           this.post('system', 'jr', `${t.id} is ready for your review (${t.assignee}): ${t.text.slice(0, 160)}${t.text.length > 160 ? '…' : ''}\nApprove it or request changes on the Tasks page.`);
@@ -300,6 +302,42 @@ export class Orchestrator {
     try { const { stdout } = await run('nvidia-smi', ['--query-gpu=temperature.gpu', '--format=csv,noheader,nounits'], { windowsHide: true }); return parseInt(stdout) || 0; } catch { return 0; }
   }
 
+  /** Fast path (fastpath.ts): hand a simple request straight to the least-busy enabled worker as a task. Returns true
+   *  when it did (the composer then stays asleep for this post). */
+  private async fastPath(msg: Post, tasks: Task[], now: Date): Promise<boolean> {
+    const s = getSettings(this.store); if (s.fastPath === false) return false;
+    // each post is judged once: while main is busy jr's post stays "new" for many passes (no repeat model calls or logs)
+    if (this.store.get<number>('fastChecked', 0) >= msg.id) return false;
+    this.store.set('fastChecked', msg.id);
+    if (tasks.some((t) => t.by === 'fastpath' && (t.status === 'open' || (t.status as string) === 'review'))) return false;   // one at a time
+    let d = isSimpleRequest(msg.body);
+    // borderline: one short model call decides (still far quicker than waking the composer)
+    const model = String(this.jobs.main?.payload?.model || '');
+    if (d.unsure && model.startsWith('ollama/')) d = await judgeSimple(model.replace(/^ollama\//, ''), msg.body);
+    if (!d.ok) { this.log(`fast path: no (${d.why}) - the composer plans it`); return false; }
+    const on = s.workers.filter((w) => this.cfg.workers.includes(w)); if (!on.length) return false;
+    const load = (w: string) => tasks.filter((t) => t.assignee === w && t.status === 'open').length + (this.running(w) ? 1 : 0);
+    const w = [...on].sort((a, b) => load(a) - load(b))[0];
+    if (load(w) > 0) { this.log('fast path: no free worker - the composer plans it'); return false; }
+    const id = 'T' + (1 + Math.max(0, ...tasks.map((t) => Number(t.id.replace(/\D/g, '')) || 0)));
+    const text = fastTaskText(msg.body, this.cfg.workDir);
+    tasks.push({ id, assignee: w, text, status: 'open', attempts: 0, by: 'fastpath', created: now.toISOString(), updated: now.toISOString() });
+    this.store.saveTasks(tasks);
+    this.store.set('fastFor', { ...this.store.get<Record<string, number>>('fastFor', {}), [id + '|' + now.toISOString()]: msg.id });
+    this.post('main-fast', 'jr', `Quick job - ${w} is on it directly (${id}). I'll post the result here.`);
+    this.store.addPost('main', w, `TASK ${w}: ${text}`, { cmd: true, source: 'fastpath' });   // the board's record (cmd: the task already exists, like team_assign)
+    this.log(`fast path: ${id} for ${w} (${d.why}): ${text.slice(0, 140)}`);
+    return true;
+  }
+  /** A fast-path task passed its check: tell jr the result directly (what the worker said, and the files). */
+  private reportFast(t: Task, posts: Post[]) {
+    const done = [...posts].reverse().find((p) => p.from === t.assignee && new RegExp(`DONE\\s+${t.id}\\b`, 'i').test(p.body));
+    const note = done ? done.body.replace(/^\s*DONE\s+T\d+\s*/i, '').trim() : '';
+    const files = expectedFiles(t.text, this.cfg.workDir).filter((f) => this.stat(f).exists);
+    const cost = this.store.get<Record<string, any>>('taskCosts', {})[`${t.id}|${t.created}`];
+    this.post('main-fast', 'jr', `Done (${t.id}, ${t.assignee}${cost ? `, ${cost.secs} s` : ''}): ${note.slice(0, 400) || 'finished.'}${files.length ? `\nFiles: ${files.join(', ')}` : ''}`);
+  }
+
   /** Learned memory: once jr's latest request has been answered and the team is idle (at most every 5 min), one model
    *  call turns the recent conversation into ADD / UPDATE / DELETE changes to memory/learned.md (Settings: Learn). */
   private learning = false;
@@ -308,7 +346,7 @@ export class Orchestrator {
     if (Date.now() - this.store.get<number>('learnAt', 0) < 5 * 60000) return;
     const lastJr = [...posts].reverse().find((p) => p.from === 'jr'); if (!lastJr) return;
     if (lastJr.id <= this.store.get<number>('learnedUpTo', 0)) return;
-    if (!posts.some((p) => p.id > lastJr.id && /^main(-relay|-chat)?$/.test(p.from) && p.to === 'jr')) return;   // not answered yet
+    if (!posts.some((p) => p.id > lastJr.id && /^main(-relay|-chat|-fast)?$/.test(p.from) && p.to === 'jr')) return;   // not answered yet
     const model = String(this.jobs.main?.payload?.model || ''); if (!model.startsWith('ollama/')) return;
     this.learning = true; this.store.set('learnAt', Date.now());
     try {
@@ -408,11 +446,16 @@ export class Orchestrator {
     if (existsSync(wakeFlag)) { this.store.set('wakeMain', true); try { unlinkSync(wakeFlag); } catch {} }
     // Any jr post main has not been started for yet (not "newer than main's last post": main's report on earlier
     // work can land seconds after jr's follow-up and hid it).
-    const jrNew = (!!jrKey && jrKey !== this.store.get('lastJrTriggered', '')) || this.store.get('wakeMain', false);
+    let jrNew = (!!jrKey && jrKey !== this.store.get('lastJrTriggered', '')) || this.store.get('wakeMain', false);
+    // Fast path: a simple one-step request goes straight to a free worker; the composer is not woken for it.
+    if (jrNew && !this.store.get('wakeMain', false) && lastJr >= 0 && await this.fastPath(posts[lastJr], tasks, now)) { this.store.set('lastJrTriggered', jrKey); jrNew = false; }
     // A worker reported to main (finished a task, or asked something) after main's last pass started: main reviews
-    // it now instead of at the end of its rest, so results reach jr minutes sooner.
+    // it now instead of at the end of its rest, so results reach jr minutes sooner. (Fast-path results are reported
+    // by Orchestra itself, so they do not wake main.)
     const sinceStart = this.store.get<number>('postsAtMainStart', 0);
-    const report = [...posts].reverse().find((p) => p.id > sinceStart && this.cfg.workers.includes(p.from) && (p.to === 'main' || p.to === 'all') && !p.cmd);
+    const fastIds = new Set(tasks.filter((t) => t.by === 'fastpath').map((t) => t.id));
+    const report = [...posts].reverse().find((p) => p.id > sinceStart && this.cfg.workers.includes(p.from) && (p.to === 'main' || p.to === 'all') && !p.cmd
+      && !fastIds.has((/T\d+/.exec(p.body) || [''])[0]));
     const reportNew = !!report && String(report.id) !== this.store.get('lastReportTriggered', '');
     let sleepUntil = 0;
     const sf = join(this.cfg.logDir, 'main-sleep-until.txt');

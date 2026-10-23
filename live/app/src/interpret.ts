@@ -99,6 +99,12 @@ const WEAK = /(^|[\s,.!?])(it|its|that|this|those|these|them|they|one|ones)(?=$|
 /** A message needs the conversation to be understood: short (fewer than 10 words), a follow-up word ("again",
  *  "missed", "the other one"), or a plain reference ("it", "that") in a fairly short message. A long, self-contained
  *  request goes straight to the brain (seen: "Write three one-line tips..." rewritten because "one-line" matched "one"). */
+/** Stricter test for a request a worker gets as it stands (fastpath.ts): a follow-up word, or a plain reference
+ *  near the start ("make it shorter", "do that again"). "...and save it as x.md" points inside the request itself. */
+export function refersBack(body: string): boolean {
+  const text = String(body || '').trim();
+  return STRONG.test(text) || WEAK.test(text.split(/\s+/).slice(0, 3).join(' '));
+}
 export function dependsOnContext(body: string): boolean {
   const text = String(body || '').trim();
   const words = text.split(/\s+/).filter(Boolean).length;

@@ -142,12 +142,17 @@ function mainAgenda(o: Orchestrator): string {
       && t0 - Date.parse(p.ts.replace(' ', 'T')) < 30 * 60000).slice(-6);
     return prev.length ? `\n   Conversation just before it (read it: this may be a follow-up to it, not a new topic):\n${prev.map((p) => `   | ${p.from}: ${one(p.body, 220)}`).join('\n')}` : '';
   };
-  const jrNew = after.filter((p) => p.from === 'jr' && !answeredAfter(p.id));
+  // requests the fast path handed straight to a worker, and those tasks' results: Orchestra reports them itself
+  const fastPosts = new Set(Object.values(o.store.get<Record<string, number>>('fastFor', {})));
+  const fastTasks = new Set(tasks.filter((t) => t.by === 'fastpath').map((t) => t.id));
+  const jrNew = after.filter((p) => p.from === 'jr' && !answeredAfter(p.id) && !fastPosts.has(p.id));
   // The interpret step's reading of jr's newest message (interpret.ts), shown first in NEEDS YOU and in its item.
   const meant = o.store.get<Record<string, Interpretation>>('interpretations', {});
   const newest = jrNew[jrNew.length - 1];
   const hint = newest && meant[newest.id] ? agendaHint(meant[newest.id], tasks.find((t) => t.id === meant[newest.id].refersTo)) : '';
   for (const p of after) {
+    if (p.from === 'jr' && fastPosts.has(p.id)) continue;
+    if (o.cfg.workers.includes(p.from) && fastTasks.has((/T\d+/.exec(p.body) || [''])[0])) continue;
     if (p.from === 'jr' && !answeredAfter(p.id) && p !== jrNew[jrNew.length - 1]) continue;   // several posts in a row: one item, the newest, with the rest as its conversation
     if (p.from === 'jr' && !answeredAfter(p.id))
       items.push(`NEW REQUEST from jr (${p.ts}): "${one(p.body, 600)}"${convo(p.id)}${hint ? `\n   ${hint}` : ''}\n   -> Work out what jr wants from the conversation. If earlier work failed, say why in one line and assign a fix. Main cannot touch files itself: deleting, moving or cleaning files is a job for a worker (shell tool).\n   -> Split it into jobs: one team_assign per job, each naming the file to write, on free workers. Thinking-heavy job (analysis, writing, comparing, planning): one worker with model smart. Routine: model fast.\n   -> Then tell jr your plan in two or three lines (team_post to jr).`);
@@ -164,7 +169,7 @@ function mainAgenda(o: Orchestrator): string {
       items.push(`SCHEDULED JOB (${p.ts}): ${one(p.body.replace(/^Automation:\s*/i, ''), 300)}\n   -> Do it like a request from jr.`);
   }
   // finished without a DONE post (closed because its files appeared) and not reported to jr yet
-  for (const t of tasks.filter((t) => t.status === 'done' && t.updated > w.at)) {
+  for (const t of tasks.filter((t) => t.status === 'done' && t.updated > w.at && t.by !== 'fastpath')) {
     if (items.some((i) => i.includes(` for ${t.id} `))) continue;
     if (posts.some((p) => p.from === 'main' && p.to === 'jr' && p.body.includes(t.id) && Date.parse(p.ts.replace(' ', 'T')) >= Date.parse(t.updated) - 60000)) continue;
     const pdf = pdfOf(o, t);

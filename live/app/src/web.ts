@@ -304,7 +304,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
     '/api/memory/file': (q) => readMemory(cfg, String(q.get('id') || '')),
     '/api/replies': (q) => {
       const since = Number(q.get('since')) || 0, last = o.store.lastPostId();
-      const replies = since ? o.store.posts({ limit: 60 }).filter((p) => p.id > since && p.to === 'jr' && /^main(-relay|-chat)?$/.test(p.from))
+      const replies = since ? o.store.posts({ limit: 60 }).filter((p) => p.id > since && p.to === 'jr' && /^main(-relay|-chat|-fast)?$/.test(p.from))
         .map((p) => ({ id: p.id, from: p.from, text: p.body.replace(/_\(relayed:[^)]*\)_/g, '').replace(/\s+/g, ' ').trim().slice(0, 220) })) : [];
       return { notify: getSettings(o.store).notify !== false, last, replies };
     },
@@ -451,7 +451,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
   const postRoutes: Record<string, (b: any) => Promise<any> | any> = {
     '/api/settings': async (b) => {
       const patch: any = {};
-      for (const k of ['autonomy', 'workers', 'workerCount', 'parallel', 'ctx', 'notify', 'modelKinds', 'thinking', 'lightContext', 'runMinutes', 'interpret', 'learn', 'review', 'kvCache']) if (b[k] !== undefined) patch[k] = b[k];
+      for (const k of ['autonomy', 'workers', 'workerCount', 'parallel', 'ctx', 'notify', 'modelKinds', 'thinking', 'lightContext', 'runMinutes', 'interpret', 'learn', 'review', 'kvCache', 'fastPath']) if (b[k] !== undefined) patch[k] = b[k];
       const before = cfg.workers.length;
       const s = await saveSettings(o.store, o.gw, patch, (m) => o.log(m));
       let note = '';

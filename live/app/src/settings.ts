@@ -26,12 +26,13 @@ export interface Settings {
   thinking: Record<string, Thinking>; lightContext: boolean; runMinutes: number; interpret: boolean;
   learn: boolean;   // learned memory (learn.ts): pick up durable facts from conversations while idle
   review: boolean;  // review gate: finished tasks wait for jr's Approve / Request changes before they count as done
+  fastPath: boolean;   // simple one-step requests go straight to a free worker (fastpath.ts)
   kvCache: 'f16' | 'q8_0';   // Ollama's KV cache type: q8_0 halves the cache's memory (flash attention on) at a negligible quality cost
 }
 export const DEFAULTS: Settings = { autonomy: 'ask', workers: ['worker', 'worker2'], workerCount: 2, parallel: 1, ctx: 24576, notify: true, modelKinds: ['abliterated'],
   // main thinks: Qwen3 on Ollama sometimes writes its tool call inside the thinking text; the tool-call rescue proxy
   // (ollamaproxy.ts) turns those into real calls, so thinking runs no longer end with nothing done.
-  thinking: { main: 'low', worker: 'off' }, lightContext: false, runMinutes: 8, interpret: true, learn: true, review: false, kvCache: 'f16' };
+  thinking: { main: 'low', worker: 'off' }, lightContext: false, runMinutes: 8, interpret: true, learn: true, review: false, kvCache: 'f16', fastPath: true };
 /** Context sizes offered: up to 32k always; 48k and 64k only with the q8_0 cache (and slower: small models lose focus). */
 export const CTX_SIZES = [16384, 24576, 32768, 49152, 65536];
 export const RUN_MINUTES = [4, 8, 12, 20];
@@ -68,7 +69,7 @@ export async function saveSettings(store: Store, gw: Gateway, patch: Partial<Set
   s.thinking = { ...getSettings(store).thinking, ...(patch.thinking || {}) };
   for (const [a, v] of Object.entries(s.thinking)) if (!THINKING.includes(v)) throw new Error(`thinking for ${a} must be one of ${THINKING.join(', ')}`);
   s.runMinutes = RUN_MINUTES.includes(Number(s.runMinutes)) ? Number(s.runMinutes) : 8;
-  s.lightContext = !!s.lightContext; s.interpret = !!s.interpret; s.learn = s.learn !== false; s.review = !!s.review;
+  s.lightContext = !!s.lightContext; s.interpret = !!s.interpret; s.learn = s.learn !== false; s.review = !!s.review; s.fastPath = s.fastPath !== false;
   if (patch.autonomy) {
     const cur: any = await gw.rpc('exec.approvals.get', {});
     const file = { ...cur.file, defaults: { ...(cur.file?.defaults || {}), ...POLICY[s.autonomy] } };
