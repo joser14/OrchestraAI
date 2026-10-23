@@ -30,4 +30,6 @@ const head = Buffer.alloc(6); head.writeUInt16LE(0, 0); head.writeUInt16LE(1, 2)
 let off = 6 + 16 * sizes.length; const dir = [];
 sizes.forEach((s, i) => { const e = Buffer.alloc(16); e[0] = s === 256 ? 0 : s; e[1] = s === 256 ? 0 : s; e.writeUInt16LE(1, 4); e.writeUInt16LE(32, 6); e.writeUInt32LE(imgs[i].length, 8); e.writeUInt32LE(off, 12); off += imgs[i].length; dir.push(e); });
 fs.writeFileSync(path.join(__dirname, 'icon.ico'), Buffer.concat([head, ...dir, ...imgs]));
-console.log('wrote icon.png and icon.ico');
+// macOS builds need an icon of at least 512 x 512 (electron-builder turns it into the .icns)
+fs.writeFileSync(path.join(__dirname, 'icon-mac.png'), png(1024));
+console.log('wrote icon.png, icon.ico and icon-mac.png');

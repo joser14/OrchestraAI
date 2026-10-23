@@ -55,6 +55,7 @@ nsis:
 # macOS (Apple silicon and Intel) and Linux (x64 workstations and ARM64 boxes such as the NVIDIA DGX Spark / GB10).
 # Build each on its own OS: electron-builder makes .dmg only on a Mac, and .deb needs Linux tooling.
 mac:
+  icon: assets/icon-mac.png   # 1024 px (make-icon.cjs): the Mac build needs 512 px or more
   target:
     - target: dmg
       arch: [arm64, x64]
