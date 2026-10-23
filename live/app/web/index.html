@@ -227,6 +227,26 @@
   .page-title { font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
   .page-sub { font-size: 12.5px; color: var(--muted); }
   .content .wrap { width: 100%; max-width: 1360px; padding: 24px 28px 40px; }
+  /* Memory page: file list + editor */
+  .mem { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 12px; align-items: start; }
+  .mem-files { display: flex; flex-direction: column; gap: 2px; max-height: calc(100vh - 200px); overflow: auto; }
+  .mem-group { margin: 10px 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--red); } .mem-group:first-child { margin-top: 0; }
+  .mem-file { display: flex; justify-content: space-between; gap: 8px; text-align: left; padding: 6px 8px; background: none; border: 1px solid transparent; color: var(--text); cursor: pointer; font: inherit; }
+  .mem-file:hover { border-color: var(--border); } .mem-file.on { border-color: var(--red); background: color-mix(in srgb, var(--red) 8%, transparent); }
+  .mem-file.empty > span:first-child { color: var(--muted); font-style: italic; }
+  .mem-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; } .mem-head h2 { margin: 0; }
+  .mem-actions { display: flex; align-items: center; gap: 10px; flex: none; }
+  .mem-text { width: 100%; min-height: calc(100vh - 290px); resize: vertical; padding: 12px; background: var(--bg); color: var(--text); border: 1px solid var(--border); font: 14px/1.5 ui-monospace, 'JetBrains Mono', monospace; }
+  .mem-foot { margin-top: 6px; }
+  /* Skills page: filter bar + cards */
+  .sk-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; } .sk-bar .inp { flex: 1; min-width: 160px; max-width: 360px; }
+  .sk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .sk-card { border: 1px solid var(--border); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; opacity: .72; } .sk-card.ready { opacity: 1; }
+  .sk-head { display: flex; align-items: center; gap: 8px; } .sk-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sk-e { width: 20px; text-align: center; } .sk-about { font-size: 13px; color: var(--muted); line-height: 1.4; }
+  .sk-st { font-size: 11px; padding: 2px 7px; border: 1px solid var(--border); white-space: nowrap; } .sk-st.ok { color: #4ade80; border-color: rgba(74, 222, 128, .4); } .sk-st.need { color: #f3c969; border-color: rgba(243, 201, 105, .4); } .sk-st.off { color: var(--muted); }
+  .sk-miss { font-size: 12px; word-break: break-word; }
+  @media (max-width: 760px) { .mem { grid-template-columns: 1fr; } .mem-files { max-height: 240px; } .mem-text { min-height: 50vh; } }
   /* Dashboard: live telemetry tiles - big monospace numbers, sparklines, a segmented memory bar (red theme) */
   .tele { max-width: 1400px; margin: 0 auto; }
   .tl-top { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -595,6 +615,8 @@
     <div class="nav-label">Configure</div>
     <button type="button" data-tab="library"><span class="ico">◈</span>Model library <span class="badge" id="libBadge"></span></button>
     <button type="button" data-tab="tools"><span class="ico">⚒</span>Tools</button>
+    <button type="button" data-tab="memory"><span class="ico">✎</span>Memory</button>
+    <button type="button" data-tab="skills"><span class="ico">✦</span>Skills</button>
     <button type="button" data-tab="settings"><span class="ico">⛭</span>Settings <span class="badge warn" id="setBadge"></span></button>
     <button type="button" data-tab="setup"><span class="ico">⬢</span>Setup</button>
     <button type="button" data-tab="live"><span class="ico">◉</span>Sessions</button>
@@ -955,6 +977,36 @@
       <h2>Add an open model <span class="sub">any model from ollama.com or a GGUF on Hugging Face</span></h2>
       <div class="t-row"><input id="customTag" class="inp" placeholder="e.g. qwen3:8b  ·  mistral-nemo  ·  hf.co/bartowski/Some-Model-GGUF:Q4_K_M"><button type="button" class="small" id="customBtn">Add to library</button></div>
       <div class="sub" style="margin-top:6px">It is checked against the registry, then shows up in the list above as <b>Custom</b>. Install &amp; test it before giving it a role: a model must pass the tool-call test to join the team.</div>
+    </section>
+  </div>
+
+  <!-- MEMORY -->
+  <div class="tabpane" id="tab-memory">
+    <div class="mem">
+      <section class="panel pad mem-list">
+        <h2>Memory <span class="sub">what the team remembers</span></h2>
+        <div id="memFiles" class="mem-files"><div class="sub">Loading…</div></div>
+      </section>
+      <section class="panel pad mem-edit">
+        <div class="mem-head"><div><h2 id="memTitle">memory.md</h2><div class="sub" id="memAbout"></div></div>
+          <div class="mem-actions"><span class="sub" id="memState"></span><button type="button" class="small" id="memSave" disabled>Save</button></div></div>
+        <textarea id="memText" class="mem-text" spellcheck="true" placeholder="Write notes in Markdown…"></textarea>
+        <div class="sub mem-foot" id="memFoot"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- SKILLS -->
+  <div class="tabpane" id="tab-skills">
+    <section class="panel pad">
+      <h2>Skills <span class="sub">ready-made know-how OpenClaw agents can load when a job calls for it</span></h2>
+      <div class="sk-bar">
+        <div class="seg" id="skFilter"><button type="button" data-v="ready" class="on">Ready</button><button type="button" data-v="setup">Needs setup</button><button type="button" data-v="all">All</button></div>
+        <input id="skSearch" class="inp" placeholder="Search skills…" autocomplete="off">
+        <span class="sub" id="skCount"></span>
+        <button type="button" class="small ghost" id="skRefresh">Refresh</button>
+      </div>
+      <div id="skGrid" class="sk-grid"><div class="sub">Loading…</div></div>
     </section>
   </div>
 
@@ -1430,6 +1482,8 @@ function showTab(name) {
   if (name === 'chat') { loadChat(true); setTimeout(() => $('chatInput').focus(), 50); }
   $('pageTitle').textContent = PAGES[name][0]; $('pageSub').textContent = PAGES[name][1];
   if (name === 'tools') loadTools();
+  if (name === 'memory') loadMemory();
+  if (name === 'skills') loadSkillsPage();
   if (name === 'setup') { loadReady(); loadSetup(); loadSetupProgress(); }
   if (name === 'library') loadLibrary();
   if (window.flowShow) window.flowShow(name === 'flow');
@@ -1825,6 +1879,64 @@ async function loadOcTools() {
     const row = el('div', 't-row'); row.append(inp, go, rm); body.append(el('code', 'tcmd', t.command), row, out); return d;
   }));
 }
+// ---- Memory page: list on the left (team, shared notes, each agent), editor on the right ----
+let memCur = 'team:memory.md', memSavedText = '';
+async function loadMemory() {
+  const r = await fetch('/api/memory').then((x) => x.json()).catch(() => null); if (!r) return;
+  const box = $('memFiles'); box.replaceChildren();
+  let group = '';
+  for (const f of r.files) {
+    if (f.group !== group) { group = f.group; box.append(el('div', 'mem-group', group === 'Team' ? 'Team' : group === 'Shared notes' ? 'Shared notes' : group === 'main' ? 'main (composer)' : group)); }
+    const b = el('button', 'mem-file' + (f.id === memCur ? ' on' : '') + (f.exists ? '' : ' empty')); b.type = 'button'; b.title = f.about; b.dataset.id = f.id;
+    b.append(el('span', null, f.label), el('span', 'sub', f.exists ? (f.size >= 1024 ? Math.round(f.size / 1024) + ' KB' : f.size + ' B') : 'new'));
+    b.onclick = () => openMemory(f.id, f);
+    box.append(b);
+  }
+  const cur = r.files.find((f) => f.id === memCur) || r.files[0];
+  if (cur && $('memText').dataset.id !== cur.id) openMemory(cur.id, cur);
+}
+async function openMemory(id, f) {
+  if ($('memText').value !== memSavedText && !confirm('You have unsaved changes. Discard them?')) return;
+  memCur = id;
+  const r = await fetch('/api/memory/file?id=' + encodeURIComponent(id)).then((x) => x.json()).catch(() => null); if (!r) return;
+  $('memText').dataset.id = id; $('memText').value = memSavedText = r.text;
+  $('memTitle').textContent = f ? `${f.group === 'Team' || f.group === 'Shared notes' ? '' : f.group + ' / '}${f.label}` : id;
+  $('memAbout').textContent = f ? f.about : '';
+  $('memFoot').textContent = f && f.exists ? `last changed ${new Date(f.mtime).toLocaleString()}` : 'not created yet: Save creates it';
+  memDirty(); document.querySelectorAll('.mem-file').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
+}
+function memDirty() { const d = $('memText').value !== memSavedText; $('memSave').disabled = !d; $('memState').textContent = d ? 'unsaved changes' : ''; }
+$('memText').oninput = memDirty;
+$('memText').onkeydown = (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); $('memSave').click(); } };
+$('memSave').onclick = async () => {
+  try { const r = await postJSON('/api/memory/save', { id: memCur, text: $('memText').value }); memSavedText = $('memText').value; memDirty(); toast(r.msg); loadMemory(); }
+  catch (e) { toast(e.message, true); }
+};
+
+// ---- Skills page: OpenClaw's skills, ready ones first, filter and search ----
+let skAll = null, skFilter = 'ready';
+async function loadSkillsPage(force) {
+  if (!skAll || force) {
+    $('skGrid').replaceChildren(el('div', 'sub', 'Asking OpenClaw for its skills…'));
+    const c = await fetch('/api/tools/catalog?skills=1' + (force ? '&fresh=1' : '')).then((x) => x.json()).catch(() => null);
+    skAll = (c && c.skills) || [];
+  }
+  const q = $('skSearch').value.trim().toLowerCase();
+  const list = skAll.filter((s) => (skFilter === 'all' || (skFilter === 'ready' ? s.ready : !s.ready)) && (!q || (s.name + ' ' + s.about).toLowerCase().includes(q)));
+  $('skCount').textContent = `${skAll.filter((s) => s.ready).length} ready of ${skAll.length}`;
+  $('skGrid').replaceChildren(...(list.length ? list.map((s) => {
+    const card = el('div', 'sk-card' + (s.ready ? ' ready' : ''));
+    const head = el('div', 'sk-head'); head.append(el('span', 'sk-e', s.emoji || '•'), el('b', null, s.name), el('span', 'sk-st ' + (s.ready ? (s.disabled ? 'off' : 'ok') : 'need'), s.ready ? (s.disabled ? 'disabled' : 'ready') : 'needs setup'));
+    card.append(head, el('div', 'sk-about', s.about || ''));
+    if (!s.ready && s.missing) card.append(el('div', 'sub sk-miss', 'Missing: ' + s.missing));
+    if (s.homepage) { const a = el('a', 'more', 'docs →'); a.href = s.homepage; a.target = '_blank'; a.rel = 'noopener'; card.append(a); }
+    return card;
+  }) : [el('div', 'sub', skFilter === 'ready' ? 'No ready skills match.' : 'No skills match.')]));
+}
+document.querySelectorAll('#skFilter button').forEach((b) => { b.onclick = () => { skFilter = b.dataset.v; document.querySelectorAll('#skFilter button').forEach((x) => x.classList.toggle('on', x === b)); loadSkillsPage(); }; });
+$('skSearch').oninput = () => loadSkillsPage();
+$('skRefresh').onclick = () => loadSkillsPage(true);
+
 // one dropdown for every program the agents use (missing first); Install runs the Setup page's own installer
 async function loadInstallable() {
   const r = await fetch('/api/setup/ready').then((x) => x.json()).catch(() => null);

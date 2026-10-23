@@ -13,6 +13,7 @@ import type { Post, Task } from './rules.ts';
 import { workPaths, expectedFiles } from './rules.ts';
 import { getSettings } from './settings.ts';
 import { agendaHint, folderSnapshot, verifyFiles, type Interpretation } from './interpret.ts';
+import { teamMemory } from './memory.ts';
 
 export interface Watermark { post: number; at: string }
 const NONE: Watermark = { post: 0, at: '1970-01-01T00:00:00.000Z' };
@@ -118,6 +119,8 @@ function mainAgenda(o: Orchestrator): string {
     L.push(`${x}: ${state} · model ${(o.jobs[x]?.payload?.model || 'default').replace(/^ollama\/|:latest$/g, '')}`);
   }
   L.push(`Up to ${S.parallel} worker(s) run at once. Models you can give a job: ${Object.keys(o.cfg.aliases).sort().join(', ')}`);
+  const tm = teamMemory(o.cfg);   // jr's standing notes (Memory page): always in front of the brain
+  if (tm) L.push('', "=== TEAM MEMORY (jr's standing notes - follow them) ===", tm);
 
   // ---- agenda ----
   const items: string[] = [];
@@ -212,6 +215,8 @@ function workerBrief(o: Orchestrator, who: string): string {
   const lastOwn = posts.map((p) => p.from).lastIndexOf(who);
   const msgs = posts.slice(lastOwn + 1).filter((p) => p.from !== who && (p.to === who || p.to === 'all') && !p.cmd).slice(-5);
   L.push('', '=== MESSAGES FOR YOU ===', ...(msgs.length ? msgs.map((p) => `--- ${p.from} at ${p.ts}\n${one(p.body, 800)}`) : ['none']));
+  const tm = teamMemory(o.cfg);
+  if (tm) L.push('', "=== TEAM MEMORY (jr's standing notes - follow them) ===", tm);
   L.push('', '=== HOW TO WORK ===',
     '1. team_post to main: "Starting <id>: <your plan in one line>".',
     '2. Do the work for real. Need a teammate? team_say to them, then team_read with wait 60.',
