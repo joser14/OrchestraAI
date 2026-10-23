@@ -86,8 +86,15 @@ export async function applyAgentOptions(store: Store, gw: Gateway, log: (m: stri
     }
   } catch (e: any) { log(`openclaw: could not set the Ollama route: ${String(e.message).slice(0, 120)}`); }
   for (const j of await gw.jobs()) {
+    // OpenClaw's weekly "skill-collection-review-<agent>" jobs fail on the team agents (they look for a
+    // workshop-skills folder that does not exist and trip OpenClaw's own sandbox) and take the GPU from real work:
+    // paused here, logged; they can be switched back on in OpenClaw's Control UI.
+    if (/^skill-collection-review-(main|worker\d*)$/.test(String(j.name || '')) && j.enabled !== false) {
+      try { await gw.updateJob(j.id, { enabled: false }); log(`openclaw: paused its "${j.name}" job (it fails on Orchestra's agents and competes for the GPU)`); } catch {}
+      continue;
+    }
     const m = /^(main|worker\d*)-board$/.exec(String(j.name || '')); if (!m) continue;
-    const payload = { kind: j.payload.kind, thinking: thinkingFor(s, m[1]), lightContext: s.lightContext, timeoutSeconds: s.runMinutes * 60 };
+    const payload ={ kind: j.payload.kind, thinking: thinkingFor(s, m[1]), lightContext: s.lightContext, timeoutSeconds: s.runMinutes * 60 };
     const p = j.payload || {};
     if (p.thinking === payload.thinking && !!p.lightContext === payload.lightContext && p.timeoutSeconds === payload.timeoutSeconds) continue;
     await gw.updateJob(j.id, { payload });
