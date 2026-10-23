@@ -977,6 +977,8 @@
           <div class="seg" id="setCtx"><button type="button" data-v="16384">16k</button><button type="button" data-v="24576">24k</button><button type="button" data-v="32768">32k</button></div></div>
         <div class="set-row"><div class="lbl"><b>Start with the PC</b><div class="sub">run the Orchestra service when you sign in</div></div>
           <input type="checkbox" class="switch" id="setStart"></div>
+        <div class="set-row"><div class="lbl"><b>Look</b><div class="sub">8-bit pixel art, or the classic smooth style (this computer)</div></div>
+          <div class="seg" id="setLook"><button type="button" data-v="8bit">8-bit</button><button type="button" data-v="classic">Classic</button></div></div>
         <div class="set-row"><div class="lbl"><b>Desktop notifications</b><div class="sub">when the composer replies to you while Orchestra is in the background; click one to open the Board</div></div>
           <input type="checkbox" class="switch" id="setNotify"></div>
       </section>
@@ -2154,7 +2156,15 @@ function renderOpenClaw() {
   });
   $('ocAgents').replaceChildren(head, ...(rows.length ? rows : [(() => { const tr = el('tr'); const td = el('td', 'sub', 'No agent jobs in OpenClaw yet: run Setup.'); td.colSpan = 3; tr.append(td); return tr; })()]));
 }
-$('setNotify').onchange = (e) => saveSetting({ notify: e.target.checked }, 'Desktop notifications ' + (e.target.checked ? 'on' : 'off'));
+// Look: 8-bit (default) or classic; a per-computer preference, applied at once (the Flow scene redraws itself)
+function setLook(v) {
+  if (v === '8bit') document.documentElement.dataset.look = '8bit'; else delete document.documentElement.dataset.look;
+  try { localStorage.setItem('look', v); } catch {}
+  document.querySelectorAll('#setLook button').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
+}
+document.querySelectorAll('#setLook button').forEach((b) => { b.onclick = () => { setLook(b.dataset.v); toast('Look: ' + b.textContent); }; });
+setLook(document.documentElement.dataset.look === '8bit' ? '8bit' : 'classic');
+$('setNotify').onchange =(e) => saveSetting({ notify: e.target.checked }, 'Desktop notifications ' + (e.target.checked ? 'on' : 'off'));
 $('setInterpret').onchange =(e) => saveSetting({ interpret: e.target.checked }, 'Interpret requests ' + (e.target.checked ? 'on' : 'off'));
 $('setLight').onchange = (e) => saveSetting({ lightContext: e.target.checked }, 'Light context ' + (e.target.checked ? 'on' : 'off')).then(loadSettings);
 document.querySelectorAll('#setRun button').forEach((b) => { b.onclick = () => saveSetting({ runMinutes: +b.dataset.v }, 'Run time limit: ' + b.textContent).then(loadSettings); });
