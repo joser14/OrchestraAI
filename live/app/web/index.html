@@ -227,6 +227,10 @@
   .page-title { font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
   .page-sub { font-size: 12.5px; color: var(--muted); }
   .content .wrap { width: 100%; max-width: 1360px; padding: 24px 28px 40px; }
+  .rc-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; } .rc-chip { font-size: 12.5px; padding: 6px 10px; }
+  .rc-run { border: 1px solid var(--border); padding: 10px 12px; margin: 6px 0; display: flex; flex-direction: column; gap: 8px; }
+  .rc-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; } .rc-fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  #rcPreview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ts-form { border: 1px solid var(--border); padding: 12px; margin: 4px 0 14px; } #tsList { margin-top: 4px; } .sk-foot .small { margin-left: 6px; }
   /* Tasks Kanban: four columns, compact cards */
   .kanban { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: start; }
@@ -848,7 +852,12 @@
         </section>
 
         <section class="tile t-wide t-ask">
-          <div class="t-lbl">Request work</div>
+          <div class="t-head"><div class="t-lbl">Request work</div><button type="button" class="small ghost" id="rcNew">+ Recipe</button></div>
+          <div class="rc-chips" id="rcChips"></div>
+          <form id="rcRun" class="rc-run" hidden><b id="rcTitle"></b><div id="rcFields" class="rc-fields"></div><div class="t-row"><span class="sub" id="rcPreview"></span><button type="button" class="small ghost" id="rcCancel">Cancel</button><button type="submit" class="small">Send</button></div></form>
+          <form id="rcEdit" class="rc-run" hidden><div class="mcp-grid"><label>Name<input id="rcName" class="inp" placeholder="Research &amp; compare"></label></div>
+            <label class="ct-cmd">Request <span class="sub">write {blanks} for what changes each time, e.g. {topic}</span><textarea id="rcTemplate" rows="3" class="inp"></textarea></label>
+            <div class="t-row"><span class="sub" id="rcMsg"></span><button type="button" class="small ghost" id="rcDel">Delete</button><button type="button" class="small ghost" id="rcEditCancel">Cancel</button><button type="button" class="small" id="rcSave">Save recipe</button></div></form>
           <form id="quickForm" class="chatform">
             <input id="quickInput" placeholder="Tell main what you need… e.g. research the best budget 4K monitors and give me a PDF" autocomplete="off">
             <button type="submit">Send to main</button>
@@ -1642,6 +1651,38 @@ function spark(svg, series, { max } = {}) {
   const base = document.createElementNS(NS, 'line'); base.setAttribute('x1', 0); base.setAttribute('x2', W); base.setAttribute('y1', h - .5); base.setAttribute('y2', h - .5); base.setAttribute('class', 'sp-base'); svg.prepend(base);
 }
 const fmtCtx = (n) => (n >= 1024 ? Math.round(n / 1024) + 'k' : String(n || '–'));
+// ---- recipes: saved requests with {blanks} (click to fill and send; right-click or Edit to change) ----
+let rcList = [], rcCur = null, rcEditing = '';
+const rcBlanks = (t) => [...new Set([...String(t).matchAll(/\{([\w ]{1,30})\}/g)].map((m) => m[1]))];
+async function loadRecipes() {
+  const r = await fetch('/api/recipes').then((x) => x.json()).catch(() => null); rcList = (r && r.recipes) || [];
+  $('rcChips').replaceChildren(...rcList.map((x) => {
+    const b = el('button', 'rc-chip', x.name); b.type = 'button'; b.title = x.template + '\n\n(right-click to edit)';
+    b.onclick = () => openRecipe(x); b.oncontextmenu = (e) => { e.preventDefault(); editRecipe(x); };
+    return b;
+  }));
+}
+function openRecipe(x) {
+  rcCur = x; $('rcEdit').hidden = true; $('rcRun').hidden = false; $('rcTitle').textContent = x.name;
+  $('rcFields').replaceChildren(...rcBlanks(x.template).map((k) => { const l = el('label', null, k); const i = el('input', 'inp'); i.dataset.k = k; i.placeholder = k; i.oninput = rcPreview; l.append(i); return l; }));
+  rcPreview(); const first = $('rcFields').querySelector('input'); if (first) first.focus();
+}
+function rcPreview() {
+  if (!rcCur) return; const v = {}; $('rcFields').querySelectorAll('input').forEach((i) => { v[i.dataset.k] = i.value; });
+  $('rcPreview').textContent = rcCur.template.replace(/\{([\w ]{1,30})\}/g, (m, k) => v[k] || `{${k}}`);
+}
+function editRecipe(x) { rcEditing = x ? x.name : ''; $('rcRun').hidden = true; $('rcEdit').hidden = false; $('rcName').value = x ? x.name : ''; $('rcTemplate').value = x ? x.template : ''; $('rcDel').hidden = !x; $('rcMsg').textContent = ''; $('rcName').focus(); }
+$('rcNew').onclick = () => editRecipe(null);
+$('rcCancel').onclick = () => { $('rcRun').hidden = true; };
+$('rcEditCancel').onclick = () => { $('rcEdit').hidden = true; };
+$('rcRun').onsubmit = async (e) => {
+  e.preventDefault(); const values = {}; $('rcFields').querySelectorAll('input').forEach((i) => { values[i.dataset.k] = i.value; });
+  try { const r = await postJSON('/api/recipes/run', { name: rcCur.name, values }); toast(r.msg); $('rcRun').hidden = true; } catch (err) { toast(err.message, true); }
+};
+$('rcSave').onclick = async () => { try { toast((await postJSON('/api/recipes/save', { name: $('rcName').value, template: $('rcTemplate').value, old: rcEditing })).msg); $('rcEdit').hidden = true; loadRecipes(); } catch (e) { $('rcMsg').textContent = e.message; } };
+$('rcDel').onclick = async () => { if (!rcEditing || !confirm(`Delete the recipe "${rcEditing}"?`)) return; try { toast((await postJSON('/api/recipes/remove', { name: rcEditing })).msg); $('rcEdit').hidden = true; loadRecipes(); } catch (e) { toast(e.message, true); } };
+loadRecipes();
+
 let tlLastPoll = 0;
 async function loadTelemetry() {
   if (!$('tab-dash').classList.contains('on')) return;

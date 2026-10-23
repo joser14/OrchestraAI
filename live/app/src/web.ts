@@ -138,6 +138,13 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
   setTimeout(() => runHealth('auto').catch(() => {}), 90000);   // first one shortly after start, then every 30 min
   setInterval(() => runHealth('auto').catch(() => {}), HEALTH_EVERY_MS);
 
+  /** Saved request templates; three starters until the user changes the list. */
+  const RECIPE_STARTERS = [
+    { name: 'Research & compare', template: 'Research {topic} and give me a PDF comparing the top {count} options in one table (price, pros, cons, best for), with sources.' },
+    { name: 'Summarize a file', template: 'Read {file} in the inbox and write a one-page PDF summary: the key points, numbers and anything I need to act on.' },
+    { name: 'Weekly plan', template: 'Make me a PDF plan for {goal} this week: daily steps with time estimates, and what to check at the end of the week.' },
+  ];
+  const recipes = () => o.store.get<{ name: string; template: string }[] | null>('recipes', null) ?? RECIPE_STARTERS;
   // telemetry state: CPU counters, energy and peak temperature since the service started
   const tel = { cpu: null as { idle: number; all: number } | null, at: 0, wh: 0, tempMax: 0,
     last: null as { at: number; g: any; cpuPct: number } | null,
@@ -287,6 +294,8 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
           last: st.lastStatus || st.lastRunStatus || '', lastAt: st.lastRunAtMs || 0, nextAt: board ? 0 : st.nextRunAtMs || 0, errors: st.consecutiveErrors || 0, lastError: String(st.lastError || '').slice(0, 200) };
       }).sort((a: any, b: any) => Number(a.protected) - Number(b.protected) || String(a.name).localeCompare(String(b.name))) };
     },
+    // Recipes (after goose): saved requests with {blanks}; the page fills them and posts the result to main
+    '/api/recipes': () => ({ recipes: recipes() }),
     // Skills page > Team skills: jr's SKILL.md playbooks (teamskills.ts)
     '/api/teamskills': () => ({ skills: listSkills(cfg).map(({ name, description, body, mtime }) => ({ name, description, body, mtime })) }),
     // Memory page: the team's memory files (memory.ts keeps it to that fixed set)
@@ -591,6 +600,21 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
       if (/-board$/.test(String(j.name || ''))) throw new Error('Orchestra starts its own agents: use Wake composer, or post a request');
       await o.gw.runJob(j.id); act(`schedule ${j.name}: run now`);
       return { ok: true, msg: `${j.name} started.` };
+    },
+    '/api/recipes/save': (b) => {
+      const name = String(b.name || '').trim().slice(0, 60), template = String(b.template || '').trim().slice(0, 2000);
+      if (!name || template.length < 10) throw new Error('give the recipe a name and the request text (use {blanks} for what changes each time)');
+      o.store.set('recipes', [...recipes().filter((r) => r.name !== name && r.name !== b.old), { name, template }]);
+      return { ok: true, msg: `Saved recipe ${name}.` };
+    },
+    '/api/recipes/remove': (b) => { o.store.set('recipes', recipes().filter((r) => r.name !== String(b.name || ''))); return { ok: true, msg: `Removed recipe ${b.name}.` }; },
+    '/api/recipes/run': (b) => {
+      const r = recipes().find((x) => x.name === String(b.name || '')); if (!r) throw new Error('no such recipe');
+      const values = (b.values || {}) as Record<string, string>; const missing: string[] = [];
+      const text = r.template.replace(/\{([\w ]{1,30})\}/g, (_m, k) => { const v = String(values[k] ?? '').trim(); if (!v) missing.push(k); return v; });
+      if (missing.length) throw new Error(`fill in: ${missing.join(', ')}`);
+      post('main', text); act(`recipe "${r.name}" sent to main`);
+      return { ok: true, msg: `Sent to the composer: ${text.slice(0, 120)}${text.length > 120 ? '…' : ''}` };
     },
     '/api/work/restore': async (b) => { const msg = await restoreWork(cfg.workDir, String(b.path || '')); act(`work folder: ${msg}`); return { ok: true, msg }; },
     '/api/teamskills/save': (b) => { const r = saveSkill(cfg, { name: String(b.name || ''), description: String(b.description || ''), body: String(b.body || ''), old: b.old ? String(b.old) : undefined }); act(`skill saved: ${r.name}`); return r; },
