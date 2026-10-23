@@ -22,7 +22,7 @@ jobs:
           - os: windows-latest
             target: --win nsis
           - os: macos-latest
-            target: --mac dmg
+            target: --mac dmg --arm64 --x64   # Apple silicon and Intel (the CLI target replaces the config's arch list)
           - os: ubuntu-latest
             target: --linux AppImage   # .deb needs a maintainer e-mail in package.json
     runs-on: ${{ matrix.os }}

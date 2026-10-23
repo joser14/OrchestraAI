@@ -38,6 +38,6 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'   # unsigned: no Apple identity on the runner
         run: |
           set -o pipefail
-          npx electron-builder --mac dmg --config electron-builder.yml --publish always 2>&1 | tee build.log || {
+          npx electron-builder --mac dmg --arm64 --x64 --config electron-builder.yml --publish always 2>&1 | tee build.log || {
             grep -iE "⨯|error|cannot|failed|not found|ENOENT" build.log | tail -25 | while IFS= read -r l; do echo "::error::${l//%/%25}"; done
             exit 1; }

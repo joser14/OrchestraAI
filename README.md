@@ -12,12 +12,14 @@ leaves your machine.
 | Your computer | File |
 |---|---|
 | Windows 10 / 11 | `Orchestra Setup x.y.z.exe` |
-| Mac (Apple silicon or Intel) | `Orchestra-x.y.z.dmg` |
+| Mac with Apple silicon (M1 and later) | `Orchestra-x.y.z-arm64.dmg` |
+| Mac with an Intel chip | `Orchestra-x.y.z.dmg` |
 | Linux | `Orchestra-x.y.z.AppImage` |
 
 Run it, and Orchestra takes it from there: on first start it checks what it needs (Node.js, Ollama, OpenClaw),
-offers to install anything missing, scans your hardware and downloads models that fit. The installed app updates
-itself: new versions download in the background and install the next time you quit.
+offers to install anything missing, scans your hardware and downloads models that fit. On Windows and Linux the
+installed app updates itself: new versions download in the background and install the next time you quit. On a Mac,
+download new versions from Releases (self-updating needs a signed app).
 
 **First-run warnings.** The installers are not code-signed yet, so Windows may show "Windows protected your PC"
 (click *More info* > *Run anyway*) and macOS may say the app is from an unidentified developer (right-click the
