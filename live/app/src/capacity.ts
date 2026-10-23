@@ -17,7 +17,7 @@ import { MAX_WORKERS } from './team.ts';
 const run = promisify(execFile);
 
 let hwCache: { at: number; hw: Hardware | null } = { at: 0, hw: null };
-async function hardware() { if (!hwCache.hw || Date.now() - hwCache.at > 120000) hwCache = { at: Date.now(), hw: await scanHardware() }; return hwCache.hw!; }
+export async function hardware() { if (!hwCache.hw || Date.now() - hwCache.at > 120000) hwCache = { at: Date.now(), hw: await scanHardware() }; return hwCache.hw!; }
 
 /** The catalog model behind a job's model id (ollama/orch-fast:latest, older trav-fast, or a legacy name like qwen3-abl-fast). */
 export function catalogOf(o: Orchestrator, modelId: string): CatalogModel | null {

@@ -4,7 +4,7 @@
 import type { Store } from './store.ts';
 import type { Gateway } from './gateway.ts';
 import { scanHardware, type Hardware } from './hardware.ts';
-import { selectLineup, type Lineup, type Fit } from './select.ts';
+import { selectLineup, applyLight, type Lineup, type Fit } from './select.ts';
 import { allModels, tagExists, type CatalogModel } from './catalog.ts';
 import { getSettings, applyAgentOptions } from './settings.ts';
 import { readiness, ensureTeam } from './bootstrap.ts';
@@ -137,9 +137,10 @@ export class Setup {
     const available = new Set<string>();
     const s = getSettings(this.store); const custom = this.store.get<CatalogModel[]>('customModels', []);
     for (const m of allModels(custom)) if (!m.verify || await tagExists(m.tag)) available.add(m.tag);
-    const lineup = selectLineup(hardware, { ollamaLoadedGB: await loadedGB(), ctx, failed, available, kinds: s.modelKinds, custom });
+    const lineup = selectLineup(hardware, { ollamaLoadedGB: await loadedGB(), ctx, failed, available, kinds: s.modelKinds, custom, light: s.light });
     const inst = await installedTags();
     preferInstalled(lineup, inst);   // what Run setup will actually use: downloaded models first
+    applyLight(lineup, s.light);     // ...which may have picked a different worker
     return { hardware, lineup, installed: allModels(custom).filter((m) => inst.has(m.tag) || inst.has(m.tag + ':latest')).map((m) => m.tag), failed: [...failed] };
   }
 
@@ -152,7 +153,7 @@ export class Setup {
       const { lineup } = await this.plan(ctx);
       p.lineup = { brain: lineup.brain?.model.alias, worker: lineup.worker?.model.alias, vision: lineup.vision?.model.alias, chores: lineup.chores?.model.alias, warnings: lineup.warnings, parallelWorkers: lineup.parallelWorkers };
       const inst = await installedTags();
-      preferInstalled(lineup, inst, say);
+      preferInstalled(lineup, inst, say); applyLight(lineup, getSettings(this.store).light);
       p.lineup = { brain: lineup.brain?.model.alias, worker: lineup.worker?.model.alias, vision: lineup.vision?.model.alias, chores: lineup.chores?.model.alias, warnings: lineup.warnings, parallelWorkers: lineup.parallelWorkers };
       const picks = [...new Map([lineup.brain, lineup.worker, lineup.vision, lineup.chores].filter(Boolean).map((f) => [f!.model.tag, f!.model])).values()];
       for (const [i, m] of picks.entries()) {

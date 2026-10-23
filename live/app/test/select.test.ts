@@ -2,7 +2,7 @@
 // get sensible lineups per the design table.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { selectLineup, needGB } from '../src/select.ts';
+import { selectLineup, needGB, lightWanted } from '../src/select.ts';
 import { CATALOG } from '../src/catalog.ts';
 import type { Hardware, Gpu } from '../src/hardware.ts';
 
@@ -12,12 +12,35 @@ const hw = (gpu: Partial<Gpu> | null, ramGB = 32): Hardware => ({
 });
 const avail = new Set(CATALOG.map((m) => m.tag));   // pretend the registry has every tag
 
-test('8 GB laptop (this PC): brain 8B, workers 4B fast, one worker at a time', () => {
-  // 6.5 GB in use of which 6.3 GB are Ollama's own loaded models -> 7.8 GB capacity
+test('8 GB laptop: Light mode (auto) - the 8B brain does every job, so nothing swaps', () => {
+  // 6.5 GB in use of which 6.3 GB are Ollama's own loaded models -> 7.8 GB capacity: 8B + 4B do not fit together
   const l = selectLineup(hw({ vramGB: 8, freeGB: 1.5 }), { ollamaLoadedGB: 6.3, available: avail });
-  assert.equal(l.brain?.model.alias, 'smart'); assert.equal(l.worker?.model.alias, 'fast');
+  assert.equal(l.light, true);
+  assert.equal(l.brain?.model.alias, 'smart'); assert.equal(l.worker?.model.alias, 'smart');
   assert.equal(l.parallelWorkers, 1); assert.equal(l.cpuOnly, false);
   assert.ok(l.brain!.needGB <= 7.2, `8B at 24k needs ${l.brain!.needGB} GB`);
+  assert.ok(l.warnings.some((w) => /Light mode/.test(w)));
+});
+test('8 GB laptop with Light mode off: brain 8B, workers 4B fast (the old two-model lineup)', () => {
+  const l = selectLineup(hw({ vramGB: 8, freeGB: 1.5 }), { ollamaLoadedGB: 6.3, available: avail, light: 'off' });
+  assert.equal(l.light, false); assert.equal(l.brain?.model.alias, 'smart'); assert.equal(l.worker?.model.alias, 'fast');
+});
+test('Light mode on auto: a 24 GB card with a 27B brain gets it too (a 4B worker does not fit beside it)', () => {
+  const l = selectLineup(hw({ vramGB: 24, freeGB: 23.5 }), { available: avail });
+  assert.equal(l.light, true); assert.equal(l.worker?.model.tag, l.brain?.model.tag);
+});
+test('48 GB: Light mode stays off on auto (both models fit), and "on" forces one model', () => {
+  const auto = selectLineup(hw({ vramGB: 48, freeGB: 47 }), { available: avail });
+  assert.equal(auto.light, false); assert.notEqual(auto.worker?.model.tag, auto.brain?.model.tag);
+  const on = selectLineup(hw({ vramGB: 48, freeGB: 47 }), { available: avail, light: 'on' });
+  assert.equal(on.light, true); assert.equal(on.worker?.model.tag, on.brain?.model.tag);
+});
+test('lightWanted: auto turns on only when two different models do not fit together', () => {
+  const b = { tag: 'b', needGB: 6 }, w = { tag: 'w', needGB: 3 };
+  assert.equal(lightWanted('auto', b, w, 8).on, true);
+  assert.equal(lightWanted('auto', b, w, 10).on, false);
+  assert.equal(lightWanted('auto', b, { ...w, tag: 'b' }, 8).on, false);   // already one model
+  assert.equal(lightWanted('off', b, w, 4).on, false); assert.equal(lightWanted('on', b, w, 40).on, true);
 });
 test('16 GB card: 14B brain', () => {
   const l = selectLineup(hw({ vramGB: 16, freeGB: 15.5 }), { available: avail });

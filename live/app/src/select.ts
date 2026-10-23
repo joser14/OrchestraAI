@@ -9,6 +9,31 @@ export interface Lineup {
   capacityGB: number; ctx: number; cpuOnly: boolean; warnings: string[];
   brain: Fit | null; worker: Fit | null; vision: Fit | null; chores: Fit | null; parallelWorkers: number;
   fits: Fit[];
+  budgetGB: number; light: boolean;   // Light mode: the brain's model does every job (see applyLight)
+}
+
+export type LightSetting = 'auto' | 'on' | 'off';
+/** Light mode decision. Auto: on when the brain's and the worker's models are different and cannot both sit in the
+ *  model memory at once. Then Ollama swaps them in and out for every hand-off (seconds each, minutes on a laptop),
+ *  or spills layers to the CPU; one model that stays loaded is faster, even if it is the bigger one. */
+export function lightWanted(setting: LightSetting, brain: { tag: string; needGB: number } | null, worker: { tag: string; needGB: number } | null, budgetGB: number): { on: boolean; why: string } {
+  if (setting === 'on') return { on: true, why: 'switched on' };
+  if (setting === 'off') return { on: false, why: 'switched off' };
+  if (!brain || !worker) return { on: false, why: 'model sizes unknown' };
+  if (brain.tag === worker.tag) return { on: false, why: 'the composer and workers already share one model' };
+  const need = +(brain.needGB + worker.needGB).toFixed(1);
+  return need > budgetGB ? { on: true, why: `both models need ${need} GB, ${budgetGB.toFixed(1)} GB is available` }
+    : { on: false, why: `both models fit (${need} of ${budgetGB.toFixed(1)} GB)` };
+}
+/** Light mode on a lineup: the worker role takes the brain's model (vision and chores are left for the jobs that need them). */
+export function applyLight(l: Lineup, setting: LightSetting) {
+  const d = lightWanted(setting, l.brain && { tag: l.brain.model.tag, needGB: l.brain.needGB }, l.worker && { tag: l.worker.model.tag, needGB: l.worker.needGB }, l.budgetGB);
+  l.light = d.on && !!l.brain;
+  if (l.light && l.worker?.model.tag !== l.brain!.model.tag) {
+    l.warnings.push(`Light mode: ${l.brain!.model.alias} does every job (${d.why}), so it stays loaded and nothing swaps`);
+    l.worker = l.brain; l.parallelWorkers = 1;
+  }
+  return l;
 }
 
 export const needGB = (m: CatalogModel, ctx: number) => +(m.sizeGB + (m.kvKB * 1024 * ctx) / 2 ** 30 + 0.5).toFixed(2);
@@ -27,7 +52,7 @@ export function modelCapacityGB(hw: Hardware, ollamaLoadedGB: number): number {
 /** Largest worker model (billions of parameters) for a budget: 4B on ordinary GPUs, bigger on 40 GB+ rigs. */
 export const workerMaxParams = (budgetGB: number) => (budgetGB >= 80 ? 32 : budgetGB >= 40 ? 14 : 4);
 
-export function selectLineup(hw: Hardware, opts: { ollamaLoadedGB?: number; ctx?: number; failed?: Set<string>; available?: Set<string>; kinds?: Kind[]; custom?: CatalogModel[] } = {}): Lineup {
+export function selectLineup(hw: Hardware, opts: { ollamaLoadedGB?: number; ctx?: number; failed?: Set<string>; available?: Set<string>; kinds?: Kind[]; custom?: CatalogModel[]; light?: LightSetting } = {}): Lineup {
   const ctx = opts.ctx ?? 24576, warnings: string[] = [];
   const cap = modelCapacityGB(hw, opts.ollamaLoadedGB ?? 0);
   const cpuOnly = cap < 4;
@@ -52,7 +77,7 @@ export function selectLineup(hw: Hardware, opts: { ollamaLoadedGB?: number; ctx?
   const chores = fits.filter((f) => f.fits && f.model.roles.includes('chores') && f.model.params >= 1).sort((a, b) => a.needGB - b.needGB)[0] ?? null;
   // Two workers at once when brain + two workers all fit together.
   const parallelWorkers = brain && worker && !cpuOnly && brain.needGB + 2 * worker.needGB <= budget ? 2 : 1;
-  return { capacityGB: cap, ctx, cpuOnly, warnings, brain, worker, vision, chores, parallelWorkers, fits };
+  return applyLight({ capacityGB: cap, ctx, cpuOnly, warnings, brain, worker, vision, chores, parallelWorkers, fits, budgetGB: +budget.toFixed(2), light: false }, opts.light ?? 'auto');
 }
 
 /** How many workers can run at the same time. Research (Ollama/llama.cpp): parallel requests share ONE copy of a

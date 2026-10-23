@@ -14,6 +14,8 @@ import { applyPosts, autoDone, shouldRenumber, parseCommands, minuteOf, COMMANDE
 import { lastAssistantText } from './transcripts.ts';
 import { KeepAwake } from './health.ts';
 import { getSettings } from './settings.ts';
+import { lightStatus } from './light.ts';
+import { catalogOf } from './capacity.ts';
 import { agentCost } from './usage.ts';
 import { snapshotWork } from './outputs.ts';
 import { readLearned, writeLearned, applyChanges, askModel, learnPrompt } from './learn.ts';
@@ -146,6 +148,7 @@ export class Orchestrator {
 
     // ---- 4. model / tool picks from main or jr ----
     if (!this.dryRun) await this.applyPicks(posts, now);
+    if (!this.dryRun) await this.applyLight().catch((e) => this.log(`light mode: ${String(e.message).slice(0, 140)}`));
 
     // ---- 5. slower checks every ~110 s: relay, overflow, archived sessions, helpers ----
     if (!this.dryRun && Date.now() - this.lastSlowCheck >= 110000) { this.lastSlowCheck = Date.now(); await this.slowChecks(posts, now); }
@@ -187,8 +190,11 @@ export class Orchestrator {
     }
     const state = this.store.get<{ models: Record<string, string>; tools: Record<string, string>; fail: Record<string, number> }>('picks', { models: {}, tools: {}, fail: {} });
     const backoff = (k: string) => state.fail[k] && now.getTime() - state.fail[k] < 5 * 60000;
+    const light = Object.keys(models).length ? (await lightStatus(this).catch(() => null))?.active : false;
     for (const [a, alias] of Object.entries(models)) {
       const j = this.jobs[a]; if (!j || state.models[a] === alias || backoff(`m:${a}`)) continue;
+      // Light mode keeps workers on the composer's model (applyLight); only "vision" can still switch, for images
+      if (light && a !== 'main' && alias !== 'vision') { state.models[a] = alias; continue; }
       try { await this.gw.updateJob(j.id, { payload: { kind: j.payload.kind, model: this.cfg.aliases[alias] } }); state.models[a] = alias; this.log(`model for ${a} set to ${alias} (${this.cfg.aliases[alias]})`); }
       catch (e: any) { state.fail[`m:${a}`] = now.getTime(); this.log(`could not set model for ${a} to ${alias} (retry in 5 min): ${e.message.slice(0, 120)}`); }
     }
@@ -199,6 +205,30 @@ export class Orchestrator {
       catch (e: any) { state.fail[`t:${a}`] = now.getTime(); this.log(`could not set tools for ${a} (retry in 5 min): ${e.message.slice(0, 120)}`); }
     }
     this.store.set('picks', state);
+  }
+
+  /** Light mode (light.ts): while on, every worker job runs on the composer's model; the model a worker had before is
+   *  kept and put back when Light mode goes off. Only between runs (a job is never changed under a running agent).
+   *  Exception: a worker main switched to "vision" keeps it when the composer's model cannot see images. */
+  private async applyLight() {
+    const st = await lightStatus(this), main = String(this.jobs.main?.payload?.model || ''); if (!main) return;
+    const saved = this.store.get<Record<string, string>>('lightSaved', {}), picks = this.store.get<any>('picks', { models: {} });
+    const mainSees = !!catalogOf(this, main)?.vision;
+    let changed = false;
+    for (const w of this.cfg.workers) {
+      const j = this.jobs[w]; if (!j || this.running(w)) continue;
+      const cur = String(j.payload?.model || '');
+      let want = '';
+      if (st.active) {
+        want = picks.models?.[w] === 'vision' && !mainSees && this.cfg.aliases.vision ? this.cfg.aliases.vision : main;
+        if (cur !== want && !(w in saved)) { saved[w] = cur; changed = true; }
+      } else if (w in saved) { want = saved[w]; delete saved[w]; changed = true; }
+      if (!want || cur === want) continue;
+      await this.gw.updateJob(j.id, { payload: { kind: j.payload.kind, model: want } }); j.payload.model = want;
+      this.log(st.active ? `light mode: ${w} now uses the composer's model (${want.replace(/^ollama\/|:latest$/g, '')}): ${st.why}`
+        : `light mode off: ${w} back on ${want.replace(/^ollama\/|:latest$/g, '')}`);
+    }
+    if (changed) this.store.set('lightSaved', saved);
   }
 
   private async slowChecks(posts: Post[], now: Date) {

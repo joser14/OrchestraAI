@@ -1176,6 +1176,9 @@
         <h2>Models</h2>
         <div class="set-row"><div class="lbl"><b>Model types</b><div class="sub">which models Setup picks from and the library shows</div></div></div>
         <div id="setKinds" class="kindcards"></div>
+        <div class="set-row"><div class="lbl"><b>Light mode</b><div class="sub">one model does every job, so it stays loaded and nothing swaps in and out of memory: best on laptops and small graphics cards. Auto switches it on when the composer's and the workers' models don't fit together.</div>
+          <div class="sub" id="lightState"></div></div>
+          <div class="seg" id="setLightMode"><button type="button" data-v="auto">Auto</button><button type="button" data-v="on">On</button><button type="button" data-v="off">Off</button></div></div>
         <div class="set-row"><div class="lbl"><b>Choose models by hand</b><div class="sub">install, test and assign any model to a role</div></div>
           <button type="button" class="small ghost" data-go="library">Open model library →</button></div>
       </section>
@@ -2630,6 +2633,8 @@ function renderOpenClaw() {
   $('setLearn').checked = s.learn !== false;
   $('setReview').checked = !!s.review;
   $('setFast').checked = s.fastPath !== false;
+  document.querySelectorAll('#setLightMode button').forEach((b) => b.classList.toggle('on', b.dataset.v === (s.light || 'auto')));
+  loadLightState();
   $('setLight').checked = !!s.lightContext;
   document.querySelectorAll('#setRun button').forEach((b) => b.classList.toggle('on', +b.dataset.v === (s.runMinutes || 8)));
   const oc = s.openclaw || {};
@@ -2656,6 +2661,16 @@ function setLook(v) {
 document.querySelectorAll('#setLook button').forEach((b) => { b.onclick = () => { setLook(b.dataset.v); toast('Look: ' + b.textContent); }; });
 setLook(document.documentElement.dataset.look === '8bit' ? '8bit' : 'classic');
 $('setNotify').onchange =(e) => saveSetting({ notify: e.target.checked }, 'Desktop notifications ' + (e.target.checked ? 'on' : 'off'));
+// Light mode: what it is doing right now (the workers follow on their next run)
+async function loadLightState(fresh) {
+  const l = await fetch('/api/light' + (fresh ? '?fresh=1' : '')).then((r) => r.json()).catch(() => null); if (!l) return;
+  $('lightState').textContent = l.active ? `On now: every agent uses ${l.brain || 'the composer\'s model'} (${l.why}).`
+    : `Off now: ${l.setting === 'auto' ? l.why : 'switched off'}${l.worker && l.brain && l.worker !== l.brain ? ` · composer ${l.brain}, workers ${l.worker}` : ''}.`;
+}
+document.querySelectorAll('#setLightMode button').forEach((b) => { b.onclick = async () => {
+  await saveSetting({ light: b.dataset.v }, `Light mode: ${b.textContent}`);
+  document.querySelectorAll('#setLightMode button').forEach((x) => x.classList.toggle('on', x === b)); loadLightState(true);
+}; });
 $('setFast').onchange = (e) => saveSetting({ fastPath: e.target.checked }, 'Fast path ' + (e.target.checked ? 'on' : 'off'));
 $('setReview').onchange = (e) => saveSetting({ review: e.target.checked }, 'Review before done ' + (e.target.checked ? 'on' : 'off'));
 $('setLearn').onchange = (e) => saveSetting({ learn: e.target.checked }, 'Learn from conversations ' + (e.target.checked ? 'on' : 'off'));

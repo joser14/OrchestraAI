@@ -10,6 +10,7 @@ import type { Gateway } from './gateway.ts';
 import { clampWorkers, workerNames } from './team.ts';
 import { PROXY_PORT } from './ollamaproxy.ts';
 import { applyContext } from './context.ts';
+import type { LightSetting } from './select.ts';
 import { createRequire } from 'node:module';
 const run = promisify(execFile);
 
@@ -28,11 +29,12 @@ export interface Settings {
   review: boolean;  // review gate: finished tasks wait for jr's Approve / Request changes before they count as done
   fastPath: boolean;   // simple one-step requests go straight to a free worker (fastpath.ts)
   kvCache: 'f16' | 'q8_0';   // Ollama's KV cache type: q8_0 halves the cache's memory (flash attention on) at a negligible quality cost
+  light: LightSetting;   // Light mode: one model for every role (select.ts lightWanted); auto = when two do not fit together
 }
 export const DEFAULTS: Settings = { autonomy: 'ask', workers: ['worker', 'worker2'], workerCount: 2, parallel: 1, ctx: 24576, notify: true, modelKinds: ['abliterated'],
   // main thinks: Qwen3 on Ollama sometimes writes its tool call inside the thinking text; the tool-call rescue proxy
   // (ollamaproxy.ts) turns those into real calls, so thinking runs no longer end with nothing done.
-  thinking: { main: 'low', worker: 'off' }, lightContext: false, runMinutes: 8, interpret: true, learn: true, review: false, kvCache: 'f16', fastPath: true };
+  thinking: { main: 'low', worker: 'off' }, lightContext: false, runMinutes: 8, interpret: true, learn: true, review: false, kvCache: 'f16', fastPath: true, light: 'auto' };
 /** Context sizes offered: up to 32k always; 48k and 64k only with the q8_0 cache (and slower: small models lose focus). */
 export const CTX_SIZES = [16384, 24576, 32768, 49152, 65536];
 export const RUN_MINUTES = [4, 8, 12, 20];
@@ -62,6 +64,7 @@ export async function saveSettings(store: Store, gw: Gateway, patch: Partial<Set
   s.workers = s.workers.filter((w) => all.includes(w)); if (!s.workers.length) throw new Error('keep at least one worker on');
   s.parallel = Math.max(1, Math.min(s.workerCount, Math.round(Number(s.parallel) || 1)));
   s.kvCache = s.kvCache === 'q8_0' ? 'q8_0' : 'f16';
+  s.light = (['auto', 'on', 'off'] as const).includes(s.light) ? s.light : 'auto';
   s.ctx = CTX_SIZES.includes(Number(s.ctx)) ? Number(s.ctx) : 24576;
   if (s.ctx > 32768 && s.kvCache !== 'q8_0') throw new Error('contexts above 32k need the compact (q8_0) cache: switch it on first');
   s.modelKinds = (s.modelKinds || []).filter((k) => ['abliterated', 'standard', 'custom'].includes(k)) as any;

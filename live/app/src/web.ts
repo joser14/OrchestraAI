@@ -29,6 +29,7 @@ import type { McpAccess } from './config.ts';
 import { teamPlan, setOllamaParallel } from './capacity.ts';
 import { getSettings, saveSettings, readAutonomy, pendingApprovals, resolveApproval, startWithPc, readAgentOptions, applyAgentOptions, setSkillWorkshop } from './settings.ts';
 import { gpuMemMB } from './hardware.ts';
+import { lightStatus } from './light.ts';
 const run = promisify(execFile);
 const require = createRequire(import.meta.url);
 // Same checks as the desktop app's startup check: core installs, services to start, agent tools.
@@ -381,6 +382,8 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
         ...(q.get('hist') ? { hist: tel.hist } : {}),   // the last 15 min, so a freshly opened page has full charts
       };
     },
+    // Settings > Light mode: on or off right now, and why (light.ts)
+    '/api/light': (q) => lightStatus(o, !!q.get('fresh')),
     // Metrics > Storage: every drive (used / free) and what Orchestra itself takes: the models, its data folders and
     // OpenClaw's state. Folder sizes are walked in the background and cached for 5 min (?fresh=1 re-measures).
     '/api/storage': async (q) => {
@@ -497,7 +500,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
   const postRoutes: Record<string, (b: any) => Promise<any> | any> = {
     '/api/settings': async (b) => {
       const patch: any = {};
-      for (const k of ['autonomy', 'workers', 'workerCount', 'parallel', 'ctx', 'notify', 'modelKinds', 'thinking', 'lightContext', 'runMinutes', 'interpret', 'learn', 'review', 'kvCache', 'fastPath']) if (b[k] !== undefined) patch[k] = b[k];
+      for (const k of ['autonomy', 'workers', 'workerCount', 'parallel', 'ctx', 'notify', 'modelKinds', 'thinking', 'lightContext', 'runMinutes', 'interpret', 'learn', 'review', 'kvCache', 'fastPath', 'light']) if (b[k] !== undefined) patch[k] = b[k];
       const before = cfg.workers.length;
       const s = await saveSettings(o.store, o.gw, patch, (m) => o.log(m));
       let note = '';
