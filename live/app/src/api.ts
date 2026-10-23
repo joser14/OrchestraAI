@@ -10,6 +10,9 @@ import type { Orchestrator } from './orchestrator.ts';
 import { isPlaceholderTask, workPaths } from './rules.ts';
 import { getSettings } from './settings.ts';
 import { brief, commitHandled, recentDone, linkTask } from './brief.ts';
+import { makeImage } from './imagegen.ts';
+import { allModels } from './catalog.ts';
+const isImageTag = (tag: string) => !!allModels().find((m) => m.tag === tag)?.roles.includes('image');
 export { brief };
 
 /** Word-overlap similarity (Jaccard on content words) to catch the same job assigned twice in other words. */
@@ -148,6 +151,13 @@ export function startApi(o: Orchestrator, onPost: () => void) {
       const { stdout } = await run(process.execPath, [join(import.meta.dirname, '..', 'lib', 'md2pdf.cjs'), src, ...(b.title ? ['--title', String(b.title)] : [])], { timeout: 120000, windowsHide: true, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });   // inside the desktop app execPath is electron.exe: run it as plain Node
       return { ok: true, note: stdout.trim() };
     },
+    // pictures from a prompt (imagegen.ts); a slow one keeps drawing and lands at the same path
+    image: async (b) => {
+      const r = await makeImage({ store: o.store, workDir: o.cfg.workDir, log: (m) => o.log(m), isImage: isImageTag },
+        String(b.prompt || ''), b.file ? String(b.file) : undefined, { width: Number(b.width) || undefined, height: Number(b.height) || undefined });
+      return r.done ? { ok: true, text: `Saved the picture as ${r.file}` }
+        : { ok: true, text: `Still drawing: it will be saved as ${r.file} in a minute or two. Do not call team_image again for it; do your other steps, then team_done once the file exists.` };
+    },
   };
 
   const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
@@ -161,7 +171,7 @@ export function startApi(o: Orchestrator, onPost: () => void) {
       const agent = String(body.agent || '');
       if (!o.cfg.agents.includes(agent)) return send(400, { error: `agent must be one of: ${o.cfg.agents.join(', ')}` });
       try {
-        if (['post', 'assign', 'cancel', 'say', 'pdf', 'sleep'].includes(m![1])) guardSlept(agent);
+        if (['post', 'assign', 'cancel', 'say', 'pdf', 'image', 'sleep'].includes(m![1])) guardSlept(agent);
         // Loop detector: the exact same call twice in one run is refused (small models loop on refused or
         // already-answered calls). Keyed by agent + current run + command + arguments.
         const runId = o.store.get<Record<string, string>>('lastRun', {})[agent] || '';

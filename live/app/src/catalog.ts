@@ -5,7 +5,8 @@
 // score  = preference within its roles (higher wins when several fit; proven models rank above untested peers).
 // tested = tool-call test result on 2026-10-11; untested models are tested by Setup before they are used.
 // moe    = mixture of experts: only a few billion parameters active per token, so fast even when large.
-export type Role = 'brain' | 'worker' | 'vision' | 'chores' | 'coder';
+/** image = makes pictures from a prompt (Ollama's image models): never an agent, used by the team_image tool. */
+export type Role = 'brain' | 'worker' | 'vision' | 'chores' | 'coder' | 'image';
 /** abliterated = refusals removed (huihui_ai builds) · standard = the official release · custom = added by the user */
 export type Kind = 'abliterated' | 'standard' | 'custom';
 export interface CatalogModel {
@@ -44,7 +45,8 @@ export const STANDARD: CatalogModel[] = [
   S('std-granite33-8b', 'granite3.3:8b', 'Granite 3.3', 8, 4.6, 80, 52, ['worker', 'brain']),
   S('std-coder7', 'qwen2.5-coder:7b', 'Qwen2.5 Coder', 7, 4.4, 56, 50, ['coder']),
   S('std-gemma4-e4b', 'gemma4:e4b', 'Gemma 4', 4, 6.0, 40, 47, ['vision'], { vision: true }),
-  S('std-qwen35-4b', 'qwen3.5:4b', 'Qwen3.5', 4, 3.1, 74, 59, ['vision', 'worker'], { vision: true }),
+  // research 2026-10-23: Qwen3.5 4B leads the small models on tool use (TAU2 79.9, vendor figure) and sees images
+  S('std-qwen35-4b', 'qwen3.5:4b', 'Qwen3.5', 4, 3.1, 74, 63, ['vision', 'worker', 'brain'], { vision: true, note: 'best small model for tool use; sees images' }),
   S('std-vl4', 'qwen3-vl:4b', 'Qwen3-VL', 4, 3.1, 74, 57, ['vision', 'worker'], { vision: true }),
   S('std-qwen3-4b', 'qwen3:4b', 'Qwen3', 4, 2.3, 74, 61, ['worker', 'brain']),
   S('std-phi4mini', 'phi4-mini:3.8b', 'Phi-4 mini', 3.8, 2.3, 96, 45, ['worker', 'chores']),
@@ -72,7 +74,7 @@ export const STANDARD: CatalogModel[] = [
   S('std-nimble-9b', 'nimble:9b', 'Nimble', 9, 8.9, 64, 67, ['brain', 'worker'], { note: 'decision model (Q8)' }),
   S('std-ornith-9b', 'ornith:9b', 'Ornith', 9, 5.2, 64, 68, ['brain', 'worker'], { note: 'agent-tuned Qwen3.5' }),
   S('std-granite41-8b', 'granite4.1:8b', 'Granite 4.1', 9, 5.0, 80, 58, ['worker', 'brain']),
-  S('std-lfm25-8b', 'lfm2.5:8b', 'LFM 2.5 MoE', 8.5, 4.8, 32, 57, ['worker'], { moe: true, note: 'very fast' }),
+  S('std-lfm25-8b', 'lfm2.5:8b', 'LFM 2.5 MoE', 8.5, 4.8, 32, 64, ['worker'], { moe: true, note: 'flash: 1B active, very fast; top small open model on BFCL v4' }),
   S('std-tev1-4b', 'tev1:4b', 'Tev1', 4.3, 4.3, 74, 56, ['worker', 'chores'], { note: 'decision model (Q8)' }),
   S('std-granite41-3b', 'granite4.1:3b', 'Granite 4.1', 3.4, 2.0, 80, 48, ['worker', 'chores']),
   // ---- light models (added 2026-10-23, sizes from the registry manifests): laptops, small GPUs, CPU-only PCs.
@@ -83,6 +85,14 @@ export const STANDARD: CatalogModel[] = [
   S('std-qwen35-2b', 'qwen3.5:2b', 'Qwen3.5', 2, 2.5, 57, 44, ['worker', 'chores', 'vision', 'brain'], { vision: true, note: 'light: sees images' }),
   S('std-qwen25-3b', 'qwen2.5:3b', 'Qwen2.5', 3, 1.8, 18, 43, ['chores', 'worker'], { note: 'light: very small cache, long contexts on little memory' }),
   S('std-qwen25-1.5b', 'qwen2.5:1.5b', 'Qwen2.5', 1.5, 0.9, 14, 33, ['chores'], { note: 'light' }),
+  // Ministral 3 (Mistral, Apache 2.0): built for agents and tool use on edge devices
+  S('std-ministral3-14b', 'ministral-3:14b', 'Ministral 3', 14, 8.5, 80, 79, ['brain', 'worker'], { note: '12-16 GB cards' }),  // light vision: reading screenshots, photos, scans and charts on small PCs
+  S('std-vl2', 'qwen3-vl:2b', 'Qwen3-VL', 2, 1.8, 57, 40, ['vision', 'chores'], { vision: true, note: 'light: reads images' }),
+  S('std-granite-vision2', 'granite3.2-vision:2b', 'Granite 3.2 Vision', 2, 2.3, 40, 37, ['vision'], { vision: true, note: 'documents, tables and charts' }),
+  // ---- image makers (Ollama's experimental image generation): pictures from a prompt via the team_image tool.
+  //      Not agents: Setup never picks them; install one on the Models page. kvKB 0 (no text cache). ----
+  S('img-flux2-klein', 'x/flux2-klein:4b', 'FLUX.2 klein', 4, 5.3, 0, 60, ['image'], { note: 'makes images: fast (about 4 steps), 8 GB cards' }),
+  S('img-z-image-turbo', 'x/z-image-turbo', 'Z-Image Turbo', 6, 11.9, 0, 70, ['image'], { note: 'makes images: photo-real, 16 GB cards' }),
 ];
 
 export const CATALOG: CatalogModel[] = [

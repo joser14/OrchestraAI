@@ -996,6 +996,8 @@
         <div class="acc-lbl">Run a tool</div>
         <details class="acc"><summary><b>📄 Make a PDF</b><span class="sub">a Markdown or text file from the <span class="dir-work">work folder</span> &rarr; formatted PDF</span></summary>
           <div class="acc-body"><div class="t-row"><select id="pdfSrc" class="inp"></select><button type="button" class="small" data-tool="pdf">Make PDF</button></div><pre class="toolout" hidden></pre></div></details>
+        <details class="acc"><summary><b>🎨 Make a picture</b><span class="sub">describe it; the image model draws a PNG into the <span class="dir-work">work folder</span> (install one on the Models page)</span></summary>
+          <div class="acc-body"><div class="t-row"><input id="imgPrompt" class="inp" placeholder="a watercolor fox sitting in the snow"><button type="button" class="small" data-tool="image">Draw</button></div><pre class="toolout" hidden></pre></div></details>
         <details class="acc"><summary><b>📷 Screenshot a web page</b><span class="sub">saved as a PNG in the <span class="dir-work">work folder</span></span></summary>
           <div class="acc-body"><div class="t-row"><input id="shotUrl" class="inp" placeholder="https://…"><button type="button" class="small" data-tool="screenshot">Capture</button></div><pre class="toolout" hidden></pre></div></details>
         <details class="acc"><summary><b>⬇ Download a file</b><span class="sub">saved to the inbox folder</span></summary>
@@ -2370,7 +2372,7 @@ async function loadTools() {
 document.querySelectorAll('[data-tool]').forEach((b) => {
   b.onclick = async () => {
     const tool = b.dataset.tool;
-    const arg = { pdf: $('pdfSrc').value, screenshot: $('shotUrl').value.trim(), download: $('dlUrl').value.trim(), pdftext: $('readSrc').value }[tool];
+    const arg = { pdf: $('pdfSrc').value, image: $('imgPrompt').value.trim(), screenshot: $('shotUrl').value.trim(), download: $('dlUrl').value.trim(), pdftext: $('readSrc').value }[tool];
     const out = b.closest('.acc').querySelector('.toolout'); out.hidden = false; out.textContent = 'Running…'; b.disabled = true;   // output under its own tool
     const r = await fetch('/api/tool', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tool, arg }) }).then((r) => r.json()).catch(() => null);
     b.disabled = false; out.textContent = r ? (r.output || r.error || '(no output)') : 'Request failed.';

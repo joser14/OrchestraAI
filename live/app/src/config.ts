@@ -47,7 +47,7 @@ export function loadConfig(root = defaultRoot()): Config {
     toolGroups: {
       files: 'read,write,edit,apply_patch', memory: 'memory_search,memory_get', web: 'web_search,web_fetch', shell: 'exec', browser: 'browser',
       // orchestra-team plugin: the board, tasks, talk and PDFs as native tools (always included)
-      team: 'team_brief,team_post,team_done,team_say,team_read,team_pdf',
+      team: 'team_brief,team_post,team_done,team_say,team_read,team_pdf,team_image',
     },
   };
 }

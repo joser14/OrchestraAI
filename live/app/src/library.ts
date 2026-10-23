@@ -8,6 +8,7 @@ import { allModels, kindOf, customModel, type CatalogModel } from './catalog.ts'
 import { needGB, modelCapacityGB } from './select.ts';
 import { scanHardware, type Hardware } from './hardware.ts';
 import { pull, testModel, registerModels, installedTags, loadedGB, type ModelResult } from './setup.ts';
+import { testImageModel } from './imagegen.ts';
 import { getSettings } from './settings.ts';
 
 export const ROLE_ALIAS: Record<string, string> = { worker: 'fast', vision: 'vision', chores: 'tiny' };
@@ -25,8 +26,10 @@ export async function libraryView(o: Orchestrator) {
   const inst = await installedTags(); const results = o.store.get<ModelResult[]>('modelResults', []);
   let brain = ''; try { brain = readFileSync(join(o.cfg.root, 'models', 'brain-model.txt'), 'utf8').trim(); } catch {}
   const isModel = (target: string, names: string[]) => names.some((n) => target === `ollama/${n}:latest`);
-  const roleOf = (names: string[]) => [
+  const imageModel = o.store.get<string>('imageModel', '');
+  const roleOf = (names: string[], tag = '') => [
     ...(isModel(brain, names) ? ['brain'] : []),
+    ...(tag && tag === imageModel ? ['image'] : []),
     ...Object.entries(ROLE_ALIAS).filter(([, a]) => isModel(o.cfg.aliases[a] || '', names)).map(([r]) => r),
   ];
   return {
@@ -38,7 +41,7 @@ export async function libraryView(o: Orchestrator) {
       const need = needGB(m, ctx);
       return { alias: m.alias, tag: m.tag, family: m.family, params: m.params, sizeGB: m.sizeGB, needGB: need, fits: need <= budget,
         vision: !!m.vision, moe: !!m.moe, roles: m.roles, kind: kindOf(m), score: m.score, note: m.note || '', status,
-        genTps: r?.genTps ?? null, usedFor: roleOf(names) };
+        genTps: r?.genTps ?? null, usedFor: roleOf(names, m.tag) };
     }),
   };
 }
@@ -59,12 +62,15 @@ export class Library {
       try {
         const inst = await installedTags();
         if (!inst.has(m.tag) && !inst.has(m.tag + ':latest')) await pull(m.tag, (x) => { p.pct = Math.round(x * 80); this.set(p); });
-        p.phase = 'test'; p.pct = 85; p.msg = `Testing ${alias}: tool call and speed`; this.set(p);
-        const ctx = getSettings(this.o.store).ctx;
-        const r = await testModel(m, ctx, false);
+        const ctx = getSettings(this.o.store).ctx, image = m.roles.includes('image');
+        p.phase = 'test'; p.pct = 85; p.msg = image ? `Testing ${alias}: drawing a small test picture` : `Testing ${alias}: tool call and speed`; this.set(p);
+        const r = image ? await testImageModel(m) : await testModel(m, ctx, false);
         const all = this.o.store.get<ModelResult[]>('modelResults', []).filter((x) => x.tag !== m.tag); this.o.store.set('modelResults', [...all, r]);
-        if (r.tool === 'pass') { await registerModels(this.o.gw, [r], ctx); p.msg = `${alias} passed (${r.genTps ?? '?'} tok/s) and is ready to use`; }
-        else p.msg = `${alias} failed the tool-call test: it cannot drive tools reliably, so it is not offered`;
+        if (r.tool === 'pass' && image) {
+          if (!this.o.store.get<string>('imageModel', '')) this.o.store.set('imageModel', m.tag);   // the first one is used right away
+          p.msg = `${alias} drew its test picture and is ready: the team can make images now`;
+        } else if (r.tool === 'pass') { await registerModels(this.o.gw, [r], ctx); p.msg = `${alias} passed (${r.genTps ?? '?'} tok/s) and is ready to use`; }
+        else p.msg = image ? `${alias} could not draw: ${r.error}` : `${alias} failed the tool-call test: it cannot drive tools reliably, so it is not offered`;
         p.phase = 'done'; p.pct = 100; p.done = true; this.set(p);
         this.o.log(`model library: ${p.msg}`);
       } catch (e: any) { p.error = String(e?.message || e); p.done = true; p.msg = `Stopped: ${p.error}`; this.set(p); }
@@ -92,6 +98,12 @@ export class Library {
     const r = this.o.store.get<ModelResult[]>('modelResults', []).find((x) => x.tag === m.tag);
     if (!r || r.tool !== 'pass') throw new Error(`${alias} has not passed the tool-call test yet: install and test it first`);
     if (role === 'vision' && !m.vision) throw new Error(`${alias} cannot see images`);
+    if (role === 'image' || m.roles.includes('image')) {
+      if (!m.roles.includes('image')) throw new Error(`${alias} cannot make images`);
+      if (role !== 'image') throw new Error(`${alias} makes images: it cannot be an agent`);
+      this.o.store.set('imageModel', m.tag); this.o.log(`model library: ${alias} now makes the team's images`);
+      return { ok: true, msg: `${alias} now makes the team's images.` };
+    }
     const model = `ollama/${r.local}:latest`;
     if (role === 'brain') {
       const j = this.o.jobs.main; if (!j) throw new Error('main job not found');

@@ -30,6 +30,8 @@ import { teamPlan, setOllamaParallel } from './capacity.ts';
 import { getSettings, saveSettings, readAutonomy, pendingApprovals, resolveApproval, startWithPc, readAgentOptions, applyAgentOptions, setSkillWorkshop } from './settings.ts';
 import { gpuMemMB } from './hardware.ts';
 import { lightStatus } from './light.ts';
+import { makeImage } from './imagegen.ts';
+import { allModels } from './catalog.ts';
 const run = promisify(execFile);
 const require = createRequire(import.meta.url);
 // Same checks as the desktop app's startup check: core installs, services to start, agent tools.
@@ -775,6 +777,11 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
         // plain Node even inside the desktop app (execPath is electron.exe there)
         const { stdout } = await run(process.execPath, [join(import.meta.dirname, '..', 'lib', 'md2pdf.cjs'), arg], { timeout: 120000, windowsHide: true, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
         return { ok: true, output: stdout.trim() };
+      }
+      if (tool === 'image' && arg) {   // a picture with the PC's image model (imagegen.ts), waits up to 3 min here
+        const r = await makeImage({ store: o.store, workDir: cfg.workDir, log: (m: string) => o.log(m), isImage: (t: string) => !!allModels().find((m) => m.tag === t)?.roles.includes('image') },
+          arg, undefined, {}, 180000);
+        return { ok: true, output: r.done ? `Saved ${r.file} (${r.model})` : `Still drawing with ${r.model}: it will appear as ${r.file}` };
       }
       if (tool === 'download' && /^https?:\/\/[^\s"]+$/i.test(arg)) {
         const r = await fetch(arg, { signal: AbortSignal.timeout(120000) }); if (!r.ok) throw new Error(`download failed: HTTP ${r.status}`);

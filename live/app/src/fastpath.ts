@@ -5,9 +5,10 @@
 import { join } from 'node:path';
 import { workPaths } from './rules.ts';
 import { refersBack } from './interpret.ts';
+import { imageName } from './imagegen.ts';
 
 // ("list" is left out: as a noun, "the shopping list", it made unclear asks look clear)
-const ACTION = /\b(write|make|create|draft|compose|summari[sz]e|translate|convert|turn|format|rename|move|copy|delete|remove|download|generate|outline|rewrite|proofread|shorten|expand)\b/gi;
+const ACTION = /\b(write|make|create|draft|compose|draw|paint|illustrate|summari[sz]e|translate|convert|turn|format|rename|move|copy|delete|remove|download|generate|outline|rewrite|proofread|shorten|expand)\b/gi;
 // signs of a job with several steps, or one the composer should plan
 const MULTI = /\b(then|after that|afterwards|and also|as well as|followed by|step \d|steps|for each|every (?:day|week)|compare|comparison|versus|vs\.?|research|analy[sz]e|investigate|look into|find out|plan|strategy|report on|review all|several|multiple|each of)\b/i;
 
@@ -51,6 +52,12 @@ export async function judgeSimple(model: string, text: string, timeoutMs = 30000
 /** The worker's job: jr's words, plus a file to write when jr named none (so the result can be checked). */
 export function fastTaskText(text: string, workDir: string): string {
   let job = String(text || '').trim().replace(/\s+/g, ' ');
+  // a picture: team_image draws it into a .png (not a Markdown file)
+  if (/\b(draw|paint|illustrate|picture|image|drawing|illustration|logo|wallpaper|icon)\b/i.test(job) && !/\.(md|txt|pdf|csv)\b/i.test(job)) {
+    const named = /([\w][\w.-]*\.(?:png|jpe?g|webp))\b/i.exec(job)?.[1];
+    return named && !/[\\/]/.test(named) ? job.replace(named, join(workDir, named)) + ' Use team_image.'
+      : named ? job + ' Use team_image.' : `${job} Use team_image and save it as ${join(workDir, imageName(job))}`;
+  }
   // a bare file name ("to autumn-haiku.md") means that file in the work folder: spell out the full path
   const bare = /(?:^|[\s"'`(])([\w][\w.-]*\.(?:md|txt|csv|json|html|py|js|pdf))(?=$|[\s"'`),.;:!?])/i.exec(job);
   if (!workPaths(job, workDir).length && bare && !/[\\/]/.test(bare[1])) job = job.replace(bare[1], join(workDir, bare[1].replace(/\.pdf$/i, '.md')));

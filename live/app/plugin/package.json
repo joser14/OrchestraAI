@@ -21,6 +21,7 @@
     "typebox": "1.1.38"
   },
   "devDependencies": {
+    "@types/node": "^24.19.2",
     "typescript": "7.0.2"
   },
   "openclaw": {

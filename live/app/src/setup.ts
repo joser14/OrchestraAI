@@ -66,7 +66,8 @@ export async function registerModels(gw: Gateway, results: ModelResult[], ctx: n
   const cur: any = await gw.rpc('config.get', {});
   const cfg = cur.sourceConfig || cur.parsed || {};   // the authored file (not the resolved runtime view)
   const have = new Set(((cfg.models?.providers?.ollama?.models) || []).map((m: any) => m.id));
-  const add = results.filter((r) => r.tool === 'pass' && !have.has(`${r.local}:latest`)).map((r) => {
+  const isImage = (tag: string) => !!allModels().find((c) => c.tag === tag)?.roles.includes('image');   // pictures, not agents
+  const add = results.filter((r) => r.tool === 'pass' && !isImage(r.tag) && !have.has(`${r.local}:latest`)).map((r) => {
     const m = allModels().find((c) => c.tag === r.tag) ?? { params: 7, vision: false } as any;
     return { id: `${r.local}:latest`, name: `${r.local}:latest`, reasoning: m.params >= 8, input: m.vision ? ['text', 'image'] : ['text'],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: ctx, contextTokens: ctx, maxTokens: 4096,

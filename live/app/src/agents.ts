@@ -6,7 +6,7 @@ import type { Gateway } from './gateway.ts';
 import { writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
-export const AGENT_SPEC_VERSION = 11;
+export const AGENT_SPEC_VERSION = 12;   // 12: team_image (pictures from a prompt)
 
 // v6 (harness v2): the brief is an agenda (brief.ts), so the instructions say "work the agenda", not "read posts
 // and decide". Paths come from this PC's config; the worker list is whatever size the team is.
@@ -14,6 +14,8 @@ const COMMON = (cfg: Config) => `ALL TEAM TALK IS ON THE BOARD: team_post and te
 DELIVER PDFs: anything meant for jr (report, summary, list, research, plan) is a PDF. Write Markdown with a # title,
 ## sections, bullet lists and tables to ${join(cfg.workDir, 'name.md')}, then call team_pdf with the file name and
 give jr the .pdf path. Scratch notes for the team may stay .md.
+PICTURES: when jr asks for an image, drawing, logo or illustration, call team_image with a detailed description and
+a file name like fox.png; it saves the PNG in the work folder (a slow one finishes in the background).
 Work files go in ${cfg.workDir}. Files from jr are in ${cfg.inboxDir}.
 LONG WEB PAGES: web_fetch returns at most 6000 characters; if it gives a spill file, read it about 150 lines at a time.
 Memory: each run starts fresh. Save what you will need next time (decisions, file locations) to memory.
@@ -95,6 +97,7 @@ Team: \`main\` (the brain), ${cfg.workers.map((w) => `\`${w}\``).join(', ')}. Hu
 - main assigns work with **team_assign** (one concrete job, naming the file), cancels with **team_cancel**,
   and ends each pass with **team_sleep**.
 - Deliverables for jr are PDFs: write Markdown in ${join(cfg.workDir, 'name.md')}, then call **team_pdf** with the file name.
+- Pictures (images, drawings, logos): call **team_image** with a detailed description and a file name like fox.png.
 - Work files go in ${cfg.workDir}. Files from jr are in ${cfg.inboxDir}.
 - If a tool refuses a call, read the reason and do something else; never repeat the same call.
 - Save important facts to memory before you finish; each run starts fresh. Keep posts short; never repeat a post.

@@ -2,7 +2,8 @@
 //   node src/main.ts            run the service
 //   node src/main.ts --once     one pass, then exit (diagnostics)
 import '../lib/hide-windows.cjs';   // first: every process this service starts is windowless (Windows)
-import { watch, existsSync, mkdirSync } from 'node:fs';
+import { watch, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { connect } from 'node:net';
 import { join } from 'node:path';
 import { loadConfig } from './config.ts';
@@ -64,6 +65,18 @@ async function ensureTeamInSync() {
     try { await applyAgentSpecs(cfg, gw, (m) => o.log(m)); } catch {}
   } finally { syncing = false; }
 }
+// The gateway loads the team plugin's code once, when it starts: after an update that changed the plugin (a new
+// tool such as team_image), restart the gateway once, while no agent is running, so the agents get the new tools.
+async function reloadPluginIfChanged() {
+  if (dry) return;
+  let hash = ''; try { hash = createHash('sha1').update(readFileSync(join(import.meta.dirname, '..', 'plugin', 'dist', 'index.js'))).digest('hex'); } catch { return; }
+  const seen = store.get<string>('pluginLoaded', '');
+  if (!seen) { store.set('pluginLoaded', hash); return; }   // first run: the gateway was just set up with this plugin
+  if (seen === hash || cfg.agents.some((a) => o.running(a)) || !(await gatewayAnswers())) return;
+  o.log('team plugin updated: restarting the gateway once so the agents get its new tools');
+  store.set('pluginLoaded', hash); lastGwRestart = Date.now();
+  try { await restartGateway(join(openclawRoot(), 'openclaw.mjs')); } catch (e: any) { o.log(`gateway restart failed: ${e.message}`); }
+}
 if (!dry) startOllamaProxy((m) => o.log(m));   // tool-call rescue for thinking runs (OpenClaw uses it while thinking is on)
 await ensureTeamInSync();
 
@@ -89,6 +102,7 @@ async function health() {
     try { await restartGateway(join(openclawRoot(), 'openclaw.mjs')); } catch (e: any) { o.log(`gateway restart failed: ${e.message}`); }
   } else if (gwBad === 1) o.log('gateway not answering - will restart if still down next check');
   await ensureTeamInSync();
+  await reloadPluginIfChanged();
 }
 
 if (process.argv.includes('--once')) {

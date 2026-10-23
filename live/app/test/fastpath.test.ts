@@ -20,6 +20,11 @@ test('borderline requests are sent to the model to judge (unsure)', () => {
   assert.equal(d.ok, false); assert.equal(d.unsure, true);
 });
 
+test('a picture request is drawn with team_image into a .png, not written as Markdown', () => {
+  assert.equal(isSimpleRequest('Draw a watercolor fox sitting in the snow').ok, true);
+  assert.equal(fastTaskText('Draw a watercolor fox sitting in the snow', 'C:\\w'), 'Draw a watercolor fox sitting in the snow Use team_image and save it as C:\\w\\watercolor-fox-sitting-snow.png');
+  assert.equal(fastTaskText('Make a logo for my bakery as bakery-logo.png', 'C:\\w'), 'Make a logo for my bakery as C:\\w\\bakery-logo.png Use team_image.');
+});
 test('the worker job names a file to write when jr did not, and asks for a PDF when jr did', () => {
   const t = fastTaskText('Write a limerick about cats as a PDF', 'C:\\w');
   assert.match(t, /Save the result as C:\\w\\limerick-cats-pdf\.md|Save the result as C:\\w\\[\w-]+\.md/);

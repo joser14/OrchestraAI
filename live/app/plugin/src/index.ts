@@ -97,5 +97,9 @@ export default defineToolPlugin({
     tool(teamTool("team_pdf", "Make a PDF",
       "Turn a Markdown file in the work folder into a formatted PDF (the deliverable for jr). Give the file name, e.g. report.md.",
       Type.Object({ file: Type.String(), title: Type.Optional(Type.String()) }))),
+    tool(teamTool("team_image", "Make a picture",
+      "Draw a picture from a description with the PC's image model and save it as a PNG in the work folder, e.g. prompt \"a watercolor fox in snow\", file fox.png. Describe what to draw in detail.",
+      Type.Object({ prompt: Type.String({ description: "what to draw, in detail" }), file: Type.Optional(Type.String({ description: "file name, e.g. fox.png" })),
+        width: Type.Optional(Type.Number()), height: Type.Optional(Type.Number()) }))),
   ],
 });

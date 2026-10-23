@@ -29,7 +29,8 @@
       "team_sleep",
       "team_say",
       "team_read",
-      "team_pdf"
+      "team_pdf",
+      "team_image"
     ]
   }
 }
