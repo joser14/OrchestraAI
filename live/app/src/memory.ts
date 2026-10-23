@@ -9,7 +9,9 @@ import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, mkdirSy
 import { join, basename } from 'node:path';
 import type { Config } from './config.ts';
 
-export interface MemFile { id: string; group: string; label: string; about: string; size: number; mtime: number; exists: boolean }
+export interface MemFile { id: string; group: string; label: string; about: string; size: number; mtime: number; exists: boolean; readonly?: boolean }
+/** Files Orchestra itself rewrites (team rules): shown, never saved from the page. */
+const READONLY = /\/AGENTS\.md$/;
 const MD = /^[\w .-]{1,80}\.md$/;
 const TEAM_ABOUT = 'Your standing notes for the whole team. Every agent reads this at the start of each run: preferences, facts, rules.';
 
@@ -22,7 +24,7 @@ export function memPath(cfg: Config, id: string): string | null {
   if (m[1] === 'shared') return MD.test(m[2]) && !m[2].includes('..') ? join(cfg.root, 'memory', m[2]) : null;
   const [agent, ...rest] = m[2].split('/'); if (!cfg.agents.includes(agent)) return null;
   const file = rest.join('/');
-  if (file === 'MEMORY.md' || file === 'USER.md') return join(cfg.root, 'agents', agent, file);
+  if (['MEMORY.md', 'USER.md', 'SOUL.md', 'IDENTITY.md', 'AGENTS.md'].includes(file)) return join(cfg.root, 'agents', agent, file);
   const d = /^memory\/([\w .-]{1,80}\.md)$/.exec(file); return d && !d[1].includes('..') ? join(cfg.root, 'agents', agent, 'memory', d[1]) : null;
 }
 
@@ -37,6 +39,10 @@ export function listMemory(cfg: Config): MemFile[] {
     const ws = join(cfg.root, 'agents', a); if (!existsSync(ws)) continue;
     out.push({ id: `agent:${a}/MEMORY.md`, group: a, label: 'MEMORY.md', about: `${a}'s long-term notes`, ...info(join(ws, 'MEMORY.md')) });
     out.push({ id: `agent:${a}/USER.md`, group: a, label: 'USER.md', about: `what ${a} knows about you`, ...info(join(ws, 'USER.md')) });
+    // persona: who the agent is and how it behaves (OpenClaw loads these every session)
+    out.push({ id: `agent:${a}/SOUL.md`, group: a, label: 'SOUL.md', about: `${a}'s personality and values`, ...info(join(ws, 'SOUL.md')) });
+    out.push({ id: `agent:${a}/IDENTITY.md`, group: a, label: 'IDENTITY.md', about: `${a}'s name, role and style`, ...info(join(ws, 'IDENTITY.md')) });
+    out.push({ id: `agent:${a}/AGENTS.md`, group: a, label: 'AGENTS.md', about: 'team rules Orchestra writes on every sync (read only here)', readonly: true, ...info(join(ws, 'AGENTS.md')) });
     for (const f of mds(join(ws, 'memory')).sort().reverse().slice(0, 20))
       out.push({ id: `agent:${a}/memory/${f}`, group: a, label: `daily: ${f}`, about: `${a}'s note from ${f.replace(/\.md$/, '')}`, ...info(join(ws, 'memory', f)) });
   }
@@ -52,6 +58,7 @@ export function readMemory(cfg: Config, id: string): { id: string; text: string 
 
 export function saveMemory(cfg: Config, id: string, text: string): { ok: true; msg: string } {
   const p = memPath(cfg, id); if (!p) throw new Error('not a memory file');
+  if (READONLY.test(id)) throw new Error('AGENTS.md is written by Orchestra on every sync: put your rules in the team memory.md instead');
   const body = String(text ?? ''); if (body.length > 200000) throw new Error('too long (200 KB max)');
   mkdirSync(join(p, '..'), { recursive: true });
   writeFileSync(p, body.replace(/\r\n/g, '\n'));

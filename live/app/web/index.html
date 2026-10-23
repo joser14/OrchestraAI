@@ -1914,6 +1914,8 @@ async function openMemory(id, f) {
   $('memTitle').textContent = f ? `${f.group === 'Team' || f.group === 'Shared notes' ? '' : f.group + ' / '}${f.label}` : id;
   $('memAbout').textContent = f ? f.about : '';
   $('memFoot').textContent = f && f.exists ? `last changed ${new Date(f.mtime).toLocaleString()}` : 'not created yet: Save creates it';
+  $('memText').readOnly = !!(f && f.readonly);   // AGENTS.md: Orchestra rewrites it on every sync
+  if (f && f.readonly) $('memFoot').textContent += ' · read only: Orchestra writes this file; put your rules in the team memory.md';
   memDirty(); document.querySelectorAll('.mem-file').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
 }
 function memDirty() { const d = $('memText').value !== memSavedText; $('memSave').disabled = !d; $('memState').textContent = d ? 'unsaved changes' : ''; }
