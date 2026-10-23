@@ -165,10 +165,15 @@ export function startApi(o: Orchestrator, onPost: () => void) {
         // Loop detector: the exact same call twice in one run is refused (small models loop on refused or
         // already-answered calls). Keyed by agent + current run + command + arguments.
         const runId = o.store.get<Record<string, string>>('lastRun', {})[agent] || '';
+        // Only a call that SUCCEEDED counts as "already made": a refused call may be retried once its cause is fixed
+        // (seen: sleep refused until a bad assign was redone, then the retried sleep was blocked as a repeat). Loops
+        // of refused calls are still stopped by the 3-strikes rule below.
+        let doneKey = '';
         if (m![1] !== 'read') {
           const { agent: _a, ...args } = body; const key = `${agent}|${runId}|${m![1]}|${JSON.stringify(args)}`;
-          const seen = recentCalls.get(key) ?? 0; recentCalls.set(key, seen + 1);
+          const seen = recentCalls.get(key) ?? 0; doneKey = key;
           if (recentCalls.size > 2000) recentCalls.clear();
+          if (m![1] === 'brief') recentCalls.set(key, seen + 1);   // a repeated brief is answered with a nudge below
           // A repeated brief is answered, not refused: an error makes small models retry it (seen: 20 retries in one
           // run). The answer is a one-line nudge to act on what they already have.
           if (m![1] === 'brief' && seen >= 1) return send(200, { text: agent === 'main'
@@ -177,6 +182,7 @@ export function startApi(o: Orchestrator, onPost: () => void) {
           if (seen >= 1) throw new Error(`you already made exactly this ${m![1]} call in this run. Repeating it changes nothing: do the next thing on your list, or finish with one short line.`);
         }
         const out = await h(body, agent);
+        if (doneKey && m![1] !== 'brief') recentCalls.set(doneKey, (recentCalls.get(doneKey) ?? 0) + 1);
         if (agent === 'main' && ['post', 'assign', 'cancel', 'say'].includes(m![1])) {
           o.store.set('mainActedRun', currentMainRun());
           o.store.set('mainActAt', { run: currentMainRun(), at: Date.now() });

@@ -64,12 +64,18 @@ export class Orchestrator {
     // the next 30 s tick).
     if (this.busyPass) { this.passAgain = true; return; }
     this.busyPass = true;
-    try { await this.passInner(); }
-    catch (e: any) { this.log(`pass error: ${String(e?.message || e).slice(0, 300)}`); }
+    try { await this.passInner(); if (this.lastPassError) { this.log('pass: working again (gateway answering)'); this.lastPassError = ''; } }
+    catch (e: any) {
+      // the same error every pass (gateway restarting) is logged once, not every 10 s
+      const msg = String(e?.message || e).slice(0, 300), kind = msg.replace(/\d+/g, '#');
+      if (kind !== this.lastPassError) this.log(`pass error: ${msg}`);
+      this.lastPassError = kind;
+    }
     finally { this.busyPass = false; }
     if (this.passAgain) { this.passAgain = false; setTimeout(() => this.pass(), 500); }
   }
   private passAgain = false;
+  private lastPassError = '';
 
   private async passInner() {
     const now = new Date();
