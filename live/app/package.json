@@ -1,6 +1,6 @@
 {
   "name": "orchestra",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Local AI team (brain + workers) on OpenClaw and Ollama, sized to the PC it runs on",
   "private": true,
   "type": "module",
