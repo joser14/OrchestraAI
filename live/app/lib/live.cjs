@@ -37,7 +37,7 @@ function sessionCard(db, agent, w) {
   const kind = key.includes(':subagent:') ? 'helper' : key.includes(':cron:') ? 'board run' : 'chat';
   let task = '';
   const firstUser = msgs.find((m) => m.role === 'user');
-  if (kind === 'board run') task = agent === 'main' ? 'Orchestrator pass: read the brief, answer jr, plan and assign work' : (openTask(agent) || 'Board run: check for open tasks');
+  if (kind === 'board run') task = agent === 'main' ? 'Orchestrator pass: read the brief, answer the user, plan and assign work' : (openTask(agent) || 'Board run: check for open tasks');
   else if (firstUser) task = textOf(firstUser.content).replace(INTERNAL, '').trim();
   const steps = []; const byId = {};
   const timeline = [];   // verbose view: what it thinks / says, each action and its result, in order

@@ -41,12 +41,12 @@ export function recentDone(o: Orchestrator, days = 7): Task[] {
   return out;
 }
 
-// ---- request ledger (after Magentic-One's task/progress ledgers): every job main assigns is linked to the jr
+// ---- request ledger (after Magentic-One's task/progress ledgers): every job main assigns is linked to the user
 // request it serves, so the agenda can show each request's progress and spot one that has stalled.
 export interface ReqLink { post: number; task: string; created: string }
 export function linkTask(o: Orchestrator, task: string, created: string) {
   const seen = o.store.get<Watermark | null>('mainBriefSeen', null)?.post ?? o.store.lastPostId();
-  const req = o.store.posts({ limit: 300 }).filter((p) => p.from === 'jr' && p.id <= seen).pop();
+  const req = o.store.posts({ limit: 300 }).filter((p) => p.from === 'user' && p.id <= seen).pop();
   if (!req) return;
   o.store.set('reqLinks', [...o.store.get<ReqLink[]>('reqLinks', []), { post: req.id, task, created }].slice(-300));
 }
@@ -55,12 +55,12 @@ export function requestLedger(o: Orchestrator, posts: Post[], hours = 48): ReqVi
   const links = o.store.get<ReqLink[]>('reqLinks', []); if (!links.length) return [];
   const all = [...o.store.tasks(), ...((o.store.db.prepare(`SELECT id, assignee, text, status, attempts, by_who AS "by", created, updated FROM task_archive WHERE created >= ?`).all(new Date(Date.now() - hours * 3600000).toISOString()) as any[]) as Task[])];
   const out: ReqView[] = [];
-  for (const p of posts.filter((p) => p.from === 'jr' && Date.now() - Date.parse(p.ts.replace(' ', 'T')) < hours * 3600000)) {
+  for (const p of posts.filter((p) => p.from === 'user' && Date.now() - Date.parse(p.ts.replace(' ', 'T')) < hours * 3600000)) {
     const tasks = links.filter((l) => l.post === p.id).map((l) => all.find((t) => t.id === l.task && t.created === l.created)).filter(Boolean) as Task[];
     if (!tasks.length) continue;
     const open = tasks.filter((t) => t.status === 'open' || t.status === 'stuck');
     const lastDone = tasks.map((t) => t.updated).sort().pop() || '';
-    const reported = posts.some((q) => q.from === 'main' && q.to === 'jr' && Date.parse(q.ts.replace(' ', 'T')) >= Date.parse(lastDone) - 60000);
+    const reported = posts.some((q) => q.from === 'main' && q.to === 'user' && Date.parse(q.ts.replace(' ', 'T')) >= Date.parse(lastDone) - 60000);
     const quietMin = (Date.now() - Math.max(...tasks.map((t) => Date.parse(t.updated)))) / 60000;
     const state = open.length ? (!open.some((t) => o.running(t.assignee)) && quietMin > 30 ? 'stalled' : 'working') : reported ? 'reported' : 'complete';
     out.push({ post: p, tasks, state });
@@ -86,7 +86,7 @@ function checked(o: Orchestrator, t: Task): string {
   const v = verifyFiles(t.text, o.cfg.workDir);
   const snap = folderSnapshot([t.text], o.cfg.workDir);
   let s = snap ? `\n   folders right now: ${snap.replace(/\n/g, '; ')}` : '';
-  if (v.problems.length) s += `\n   CHECK FAILED - the job is NOT done: ${v.problems.join('; ')}.\n   -> Do not tell jr it is done. team_assign a fix that names exactly what is left (the worker must use PowerShell, e.g. Remove-Item 'folder\\*.tmp', and list the folder after).`;
+  if (v.problems.length) s += `\n   CHECK FAILED - the job is NOT done: ${v.problems.join('; ')}.\n   -> Do not tell the user it is done. team_assign a fix that names exactly what is left (the worker must use PowerShell, e.g. Remove-Item 'folder\\*.tmp', and list the folder after).`;
   else if (v.checked) s += '\n   Orchestra checked the files: the folder matches the job.';
   return s;
 }
@@ -121,9 +121,9 @@ function mainAgenda(o: Orchestrator): string {
     L.push(`${x}: ${state} · model ${(o.jobs[x]?.payload?.model || 'default').replace(/^ollama\/|:latest$/g, '')}`);
   }
   L.push(`Up to ${S.parallel} worker(s) run at once. Models you can give a job: ${Object.keys(o.cfg.aliases).sort().join(', ')}`);
-  const tm = teamMemory(o.cfg);   // jr's standing notes (Memory page): always in front of the brain
-  if (tm) L.push('', "=== TEAM MEMORY (jr's standing notes - follow them) ===", tm);
-  const lm = learnedForBrief(o.cfg);   // learned memory: jr's preferences and facts, ranked (learn.ts)
+  const tm = teamMemory(o.cfg);   // the user's standing notes (Memory page): always in front of the brain
+  if (tm) L.push('', "=== TEAM MEMORY (the user's standing notes - follow them) ===", tm);
+  const lm = learnedForBrief(o.cfg);   // learned memory: the user's preferences and facts, ranked (learn.ts)
   if (lm) L.push('', lm);
   const sk = skillsForBrief(o.cfg);   // team playbooks: name + description only; mention the skill in a job that needs it
   if (sk) L.push('', sk, 'When you assign a job that matches a skill, name the skill in the job ("follow the <name> skill").');
@@ -133,51 +133,51 @@ function mainAgenda(o: Orchestrator): string {
   const after = posts.filter((p) => p.id > w.post);
   // read before mainBriefSeen moves below; chat replies (main-chat) answer whatever came before them
   const answeredUpTo = o.store.get<number>('mainAnsweredUpTo', 0);
-  const answeredAfter = (id: number) => id <= answeredUpTo || posts.some((p) => p.id > id && p.from === 'main-chat' && p.to === 'jr');
-  // jr's follow-ups ("you didn't do it", "clean it up what are you doing") only make sense with the conversation
+  const answeredAfter = (id: number) => id <= answeredUpTo || posts.some((p) => p.id > id && p.from === 'main-chat' && p.to === 'user');
+  // the user's follow-ups ("you didn't do it", "clean it up what are you doing") only make sense with the conversation
   // before them (seen: the brain assigned "understand the request 'you didnt do it'" as a job).
   const convo = (id: number) => {
     const t0 = Date.parse(posts.find((p) => p.id === id)!.ts.replace(' ', 'T'));
-    const prev = posts.filter((p) => p.id < id && (p.from === 'jr' || (p.from === 'main' && p.to === 'jr') || o.cfg.workers.includes(p.from) && /^\s*DONE\s+T\d+/i.test(p.body))
+    const prev = posts.filter((p) => p.id < id && (p.from === 'user' || (p.from === 'main' && p.to === 'user') || o.cfg.workers.includes(p.from) && /^\s*DONE\s+T\d+/i.test(p.body))
       && t0 - Date.parse(p.ts.replace(' ', 'T')) < 30 * 60000).slice(-6);
     return prev.length ? `\n   Conversation just before it (read it: this may be a follow-up to it, not a new topic):\n${prev.map((p) => `   | ${p.from}: ${one(p.body, 220)}`).join('\n')}` : '';
   };
   // requests the fast path handed straight to a worker, and those tasks' results: Orchestra reports them itself
   const fastPosts = new Set(Object.values(o.store.get<Record<string, number>>('fastFor', {})));
   const fastTasks = new Set(tasks.filter((t) => t.by === 'fastpath').map((t) => t.id));
-  const jrNew = after.filter((p) => p.from === 'jr' && !answeredAfter(p.id) && !fastPosts.has(p.id));
-  // The interpret step's reading of jr's newest message (interpret.ts), shown first in NEEDS YOU and in its item.
+  const userNew = after.filter((p) => p.from === 'user' && !answeredAfter(p.id) && !fastPosts.has(p.id));
+  // The interpret step's reading of the user's newest message (interpret.ts), shown first in NEEDS YOU and in its item.
   const meant = o.store.get<Record<string, Interpretation>>('interpretations', {});
-  const newest = jrNew[jrNew.length - 1];
+  const newest = userNew[userNew.length - 1];
   const hint = newest && meant[newest.id] ? agendaHint(meant[newest.id], tasks.find((t) => t.id === meant[newest.id].refersTo)) : '';
   for (const p of after) {
-    if (p.from === 'jr' && fastPosts.has(p.id)) continue;
+    if (p.from === 'user' && fastPosts.has(p.id)) continue;
     if (o.cfg.workers.includes(p.from) && fastTasks.has((/T\d+/.exec(p.body) || [''])[0])) continue;
-    if (p.from === 'jr' && !answeredAfter(p.id) && p !== jrNew[jrNew.length - 1]) continue;   // several posts in a row: one item, the newest, with the rest as its conversation
-    if (p.from === 'jr' && !answeredAfter(p.id))
-      items.push(`NEW REQUEST from jr (${p.ts}): "${one(p.body, 600)}"${convo(p.id)}${hint ? `\n   ${hint}` : ''}\n   -> Work out what jr wants from the conversation. If earlier work failed, say why in one line and assign a fix. Main cannot touch files itself: deleting, moving or cleaning files is a job for a worker (shell tool).\n   -> Split it into jobs: one team_assign per job, each naming the file to write, on free workers. Thinking-heavy job (analysis, writing, comparing, planning): one worker with model smart. Routine: model fast.\n   -> Then tell jr your plan in two or three lines (team_post to jr).`);
+    if (p.from === 'user' && !answeredAfter(p.id) && p !== userNew[userNew.length - 1]) continue;   // several posts in a row: one item, the newest, with the rest as its conversation
+    if (p.from === 'user' && !answeredAfter(p.id))
+      items.push(`NEW REQUEST from the user (${p.ts}): "${one(p.body, 600)}"${convo(p.id)}${hint ? `\n   ${hint}` : ''}\n   -> Work out what the user wants from the conversation. If earlier work failed, say why in one line and assign a fix. Main cannot touch files itself: deleting, moving or cleaning files is a job for a worker (shell tool).\n   -> Split it into jobs: one team_assign per job, each naming the file to write, on free workers. Thinking-heavy job (analysis, writing, comparing, planning): one worker with model smart. Routine: model fast.\n   -> Then tell the user your plan in two or three lines (team_post to the user).`);
     else if (o.cfg.workers.includes(p.from) && /^\s*DONE\s+(T\d+)/i.test(p.body)) {
       const id = /DONE\s+(T\d+)/i.exec(p.body)![1].toUpperCase(); const t = tasks.find((x) => x.id === id);
       const files = t ? filesOf(o, t) : [];
       const pdf = t && pdfOf(o, t);
-      items.push(`RESULT from ${p.from} for ${id} (${p.ts}): "${one(p.body.replace(/^\s*DONE\s+T\d+\s*/i, ''), 300)}"${files.length ? `\n   files: ${files.join(', ')}` : ''}${t ? preview(o, t) + checked(o, t) : ''}\n   -> Judge it against jr's request and the folders as they are now, not the worker's claim. Good: tell jr the result in two lines${pdf ? ` and give the PDF path ${pdf}` : ''} (team_post to jr). Wrong or incomplete: team_assign a fix that says exactly what to change.`);
+      items.push(`RESULT from ${p.from} for ${id} (${p.ts}): "${one(p.body.replace(/^\s*DONE\s+T\d+\s*/i, ''), 300)}"${files.length ? `\n   files: ${files.join(', ')}` : ''}${t ? preview(o, t) + checked(o, t) : ''}\n   -> Judge it against the user's request and the folders as they are now, not the worker's claim. Good: tell the user the result in two lines${pdf ? ` and give the PDF path ${pdf}` : ''} (team_post to the user). Wrong or incomplete: team_assign a fix that says exactly what to change.`);
     } else if (o.cfg.workers.includes(p.from) && isQuestion(p.body))
       items.push(`QUESTION from ${p.from} (${p.ts}): "${one(p.body, 400)}"\n   -> Decide and answer ${p.from} with team_post (to: ${p.from}).`);
     else if (p.from === 'system' && /failed \d+ times|stuck|was stopped/i.test(p.body))
       items.push(`PROBLEM (${p.ts}): ${one(p.body, 300)}\n   -> Give a smaller job or another model with team_assign, or team_cancel it.`);
     else if (p.from === 'system' && /^Automation:/i.test(p.body))
-      items.push(`SCHEDULED JOB (${p.ts}): ${one(p.body.replace(/^Automation:\s*/i, ''), 300)}\n   -> Do it like a request from jr.`);
+      items.push(`SCHEDULED JOB (${p.ts}): ${one(p.body.replace(/^Automation:\s*/i, ''), 300)}\n   -> Do it like a request from the user.`);
   }
-  // finished without a DONE post (closed because its files appeared) and not reported to jr yet
+  // finished without a DONE post (closed because its files appeared) and not reported to the user yet
   for (const t of tasks.filter((t) => t.status === 'done' && t.updated > w.at && t.by !== 'fastpath')) {
     if (items.some((i) => i.includes(` for ${t.id} `))) continue;
-    if (posts.some((p) => p.from === 'main' && p.to === 'jr' && p.body.includes(t.id) && Date.parse(p.ts.replace(' ', 'T')) >= Date.parse(t.updated) - 60000)) continue;
+    if (posts.some((p) => p.from === 'main' && p.to === 'user' && p.body.includes(t.id) && Date.parse(p.ts.replace(' ', 'T')) >= Date.parse(t.updated) - 60000)) continue;
     const pdf = pdfOf(o, t);
-    items.push(`FINISHED ${t.id} by ${t.assignee}: ${one(t.text, 200)}${filesOf(o, t).length ? `\n   files: ${filesOf(o, t).join(', ')}` : ''}${preview(o, t)}${checked(o, t)}\n   -> Judge it against jr's request and the folders as they are now. Good: tell jr the result in two lines${pdf ? ` and give the PDF path ${pdf}` : ''} (team_post to jr). Wrong: team_assign a fix.`);
+    items.push(`FINISHED ${t.id} by ${t.assignee}: ${one(t.text, 200)}${filesOf(o, t).length ? `\n   files: ${filesOf(o, t).join(', ')}` : ''}${preview(o, t)}${checked(o, t)}\n   -> Judge it against the user's request and the folders as they are now. Good: tell the user the result in two lines${pdf ? ` and give the PDF path ${pdf}` : ''} (team_post to the user). Wrong: team_assign a fix.`);
   }
   const ledger = requestLedger(o, posts);
   for (const r of ledger.filter((r) => r.state === 'stalled'))
-    items.push(`STALLED request from jr (${r.post.ts}): "${one(r.post.body, 160)}" - no progress for 30+ minutes on ${r.tasks.filter((t) => t.status !== 'done').map((t) => `${t.id} (${t.status})`).join(', ')}\n   -> Re-plan: smaller jobs, another worker or model, or tell jr what is blocking.`);
+    items.push(`STALLED request from the user (${r.post.ts}): "${one(r.post.body, 160)}" - no progress for 30+ minutes on ${r.tasks.filter((t) => t.status !== 'done').map((t) => `${t.id} (${t.status})`).join(', ')}\n   -> Re-plan: smaller jobs, another worker or model, or tell the user what is blocking.`);
   for (const t of tasks.filter((t) => t.status === 'stuck' && !items.some((i) => i.includes(t.id))))
     items.push(`STUCK ${t.id} (${t.assignee}, ${t.attempts} tries): ${one(t.text, 200)}\n   -> Assign a smaller version (another model?) or team_cancel ${t.id}.`);
 
@@ -194,15 +194,15 @@ function mainAgenda(o: Orchestrator): string {
 
   // ---- context ----
   const live = ledger.filter((r) => r.state !== 'reported');
-  if (live.length) L.push('', "=== JR'S REQUESTS (progress) ===", ...live.map((r) => `  ${r.post.ts} "${one(r.post.body, 120)}": ${r.tasks.map((t) => `${t.id} ${t.status}`).join(', ')} -> ${r.state === 'complete' ? 'ALL DONE: report it to jr' : r.state}`));
+  if (live.length) L.push('', "=== THE USER'S REQUESTS (progress) ===", ...live.map((r) => `  ${r.post.ts} "${one(r.post.body, 120)}": ${r.tasks.map((t) => `${t.id} ${t.status}`).join(', ')} -> ${r.state === 'complete' ? 'ALL DONE: report it to the user' : r.state}`));
   const inflight = tasks.filter((t) => t.status === 'open' || (t.status as string) === 'review');
-  L.push('', '=== IN PROGRESS (already assigned: never assign these again) ===', ...(inflight.length ? inflight.map((t) => `  ${t.id} ${t.assignee}${(t.status as string) === 'review' ? ' (finished, waiting for jr to review - do not report or redo it)' : o.running(t.assignee) ? ' (working now)' : ''}: ${one(t.text, 220)}`) : ['  none']));
+  L.push('', '=== IN PROGRESS (already assigned: never assign these again) ===', ...(inflight.length ? inflight.map((t) => `  ${t.id} ${t.assignee}${(t.status as string) === 'review' ? ' (finished, waiting for the user to review - do not report or redo it)' : o.running(t.assignee) ? ' (working now)' : ''}: ${one(t.text, 220)}`) : ['  none']));
   const done = recentDone(o).slice(0, 6);
-  L.push('', '=== FINISHED LATELY (do not redo; if jr asks again, point to the file) ===', ...(done.length ? done.map((t) => `  ${t.id} ${clock(t.updated)} ${t.assignee}: ${one(t.text, 160)}${filesOf(o, t).length ? ` -> ${filesOf(o, t).join(', ')}` : ''}`) : ['  none']));
+  L.push('', '=== FINISHED LATELY (do not redo; if the user asks again, point to the file) ===', ...(done.length ? done.map((t) => `  ${t.id} ${clock(t.updated)} ${t.assignee}: ${one(t.text, 160)}${filesOf(o, t).length ? ` -> ${filesOf(o, t).join(', ')}` : ''}`) : ['  none']));
   const fyi = after.filter((p) => o.cfg.workers.includes(p.from) && !needsMain(p)).slice(-4);
   if (fyi.length) L.push('', '=== TEAM CHATTER (for your information) ===', ...fyi.map((p) => `  ${p.from} -> ${p.to} ${p.ts}: ${one(p.body, 200)}`));
-  const before = posts.filter((p) => p.id <= w.post && p.from === 'jr').slice(-2);
-  if (before.length) L.push('', '=== EARLIER REQUESTS (already handled) ===', ...before.map((p) => `  jr ${p.ts}: ${one(p.body, 160)}`));
+  const before = posts.filter((p) => p.id <= w.post && p.from === 'user').slice(-2);
+  if (before.length) L.push('', '=== EARLIER REQUESTS (already handled) ===', ...before.map((p) => `  user ${p.ts}: ${one(p.body, 160)}`));
   return L.join('\n');
 }
 
@@ -227,7 +227,7 @@ function workerBrief(o: Orchestrator, who: string): string {
   const msgs = posts.slice(lastOwn + 1).filter((p) => p.from !== who && (p.to === who || p.to === 'all') && !p.cmd).slice(-5);
   L.push('', '=== MESSAGES FOR YOU ===', ...(msgs.length ? msgs.map((p) => `--- ${p.from} at ${p.ts}\n${one(p.body, 800)}`) : ['none']));
   const tm = teamMemory(o.cfg);
-  if (tm) L.push('', "=== TEAM MEMORY (jr's standing notes - follow them) ===", tm);
+  if (tm) L.push('', "=== TEAM MEMORY (the user's standing notes - follow them) ===", tm);
   const lm = learnedForBrief(o.cfg, mine[0]?.text || '');   // preferences + the past solutions closest to this task
   if (lm) L.push('', lm);
   const sk = skillsForBrief(o.cfg);   // read a skill's file only when the task matches it (progressive disclosure)

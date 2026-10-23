@@ -61,8 +61,8 @@ test('tasks: commanders create, placeholders ignored, workers cannot create or c
   assert.equal(fx.ignoredPlaceholders.length, 2, 'placeholder + copied example ignored');
   store.addPost('worker2', 'main', `CANCEL ${tasks[1].id}`); pass(store, tasks);
   assert.equal(tasks[1].status, 'open', 'worker cannot cancel');
-  store.addPost('jr', 'all', `CANCEL ${tasks[1].id}`); pass(store, tasks);
-  assert.equal(tasks[1].status, 'cancelled', 'jr can cancel');
+  store.addPost('user', 'all', `CANCEL ${tasks[1].id}`); pass(store, tasks);
+  assert.equal(tasks[1].status, 'cancelled', 'the user can cancel');
   const again = pass(store, tasks);
   assert.equal(again.created.length, 0, 'idempotent: re-reading posts creates nothing new');
 });

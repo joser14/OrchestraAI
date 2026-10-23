@@ -1,4 +1,4 @@
-// Team skills: playbooks jr writes for the team, in the Agent Skills format (skills/<name>/SKILL.md with a
+// Team skills: playbooks the user writes for the team, in the Agent Skills format (skills/<name>/SKILL.md with a
 // name + description frontmatter). Progressive disclosure, as the standard recommends: the briefs list only each
 // skill's name, one-line description and file path; an agent reads the full instructions with its read tool when a
 // job calls for that skill. Small models stay focused: a few lines in the brief instead of every playbook.
@@ -52,6 +52,6 @@ export function removeSkill(cfg: Config, name: string): { ok: true; msg: string 
 /** The brief lines: name, description and where the instructions are (read them only when a job needs the skill). */
 export function skillsForBrief(cfg: Config): string {
   const s = listSkills(cfg); if (!s.length) return '';
-  return ['=== TEAM SKILLS (playbooks from jr: when a job matches one, read its file first and follow it) ===',
+  return ['=== TEAM SKILLS (playbooks from the user: when a job matches one, read its file first and follow it) ===',
     ...s.slice(0, 30).map((k) => `- ${k.name}: ${k.description} -> read ${k.path}`)].join('\n');
 }

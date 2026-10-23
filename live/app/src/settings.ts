@@ -1,6 +1,6 @@
 // User settings (Settings page): autonomy, which workers are on, context size, start with the PC, notifications.
 // Autonomy is applied to OpenClaw's exec approval policy over the gateway (exec.approvals.get/set):
-//   full = agents run commands without asking (jr's setup) · ask = unknown commands wait for approval in the
+//   full = agents run commands without asking (the user's setup) · ask = unknown commands wait for approval in the
 //   dashboard · off = no shell commands at all. New installs default to "ask" (design decision, 2026-10-11).
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -21,12 +21,12 @@ export type Thinking = 'off' | 'low' | 'medium' | 'high';
 export const THINKING: Thinking[] = ['off', 'low', 'medium', 'high'];
 /** OpenClaw agent options (Settings > OpenClaw): written into each agent's job (payload.thinking, .lightContext,
  *  .timeoutSeconds). thinking: per agent, "worker" also covers worker2..8 unless they have their own entry.
- *  interpret: the "jr most likely means" step before the brain plans (interpret.ts). */
+ *  interpret: the "the user most likely means" step before the brain plans (interpret.ts). */
 export interface Settings {
   autonomy: Autonomy; workers: string[]; workerCount: number; parallel: number; ctx: number; notify: boolean; modelKinds: ('abliterated' | 'standard' | 'custom')[];
   thinking: Record<string, Thinking>; lightContext: boolean; runMinutes: number; interpret: boolean;
   learn: boolean;   // learned memory (learn.ts): pick up durable facts from conversations while idle
-  review: boolean;  // review gate: finished tasks wait for jr's Approve / Request changes before they count as done
+  review: boolean;  // review gate: finished tasks wait for the user's Approve / Request changes before they count as done
   fastPath: boolean;   // simple one-step requests go straight to a free worker (fastpath.ts)
   kvCache: 'f16' | 'q8_0';   // Ollama's KV cache type: q8_0 halves the cache's memory (flash attention on) at a negligible quality cost
   light: LightSetting;   // Light mode: one model for every role (select.ts lightWanted); auto = when two do not fit together

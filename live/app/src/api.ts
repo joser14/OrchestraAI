@@ -69,7 +69,7 @@ export function startApi(o: Orchestrator, onPost: () => void) {
       let model = String(b.model || '').toLowerCase().trim();
       if (model && !o.cfg.aliases[model]) throw new Error(`unknown model "${model}": choose one of ${Object.keys(o.cfg.aliases).sort().join(', ')} (smart = best thinking, fast = quick, vision = images)`);
       if (!model) model = /\b(analy|compar|research|explain|plan|strateg|report|review|write|essay|summar|code|script|design|evaluat|recommend)/i.test(String(b.job)) && o.cfg.aliases.smart ? 'smart' : o.cfg.aliases.fast ? 'fast' : '';
-      if (isPlaceholderTask(job)) throw new Error('that looks like example text, not a real task: write the actual job from jr\'s request, with the file to write');
+      if (isPlaceholderTask(job)) throw new Error('that looks like example text, not a real task: write the actual job from the user\'s request, with the file to write');
       // Guardrails for small models (seen: one request assigned six times, jobs without a file to check).
       if (!workPaths(job, o.cfg.workDir).length)
         throw new Error(`name the file the worker must write, e.g. "... saved as ${join(o.cfg.workDir, 'planets.md')}" (add "then make it a PDF with team_pdf" for a PDF). Then call team_assign again.`);
@@ -82,11 +82,11 @@ export function startApi(o: Orchestrator, onPost: () => void) {
       const dup = open.find(repeat);
       if (dup) throw new Error(`already assigned as ${dup.id} to ${dup.assignee}: "${dup.text}". It is in progress: do nothing more about it this pass. Call team_sleep and stop.`);
       // Finished work is not redone (seen: after an archive the brain re-assigned a job finished hours before),
-      // unless jr asked for it again after it was done.
+      // unless the user asked for it again after it was done.
       const did = recentDone(o).find(repeat);
       if (did) {
-        const askedAgain = o.store.posts({ limit: 200 }).some((p) => p.from === 'jr' && Date.parse(p.ts.replace(' ', 'T')) > Date.parse(did.updated) && similar(p.body, job) >= 0.25);
-        if (!askedAgain) throw new Error(`this was already done as ${did.id} (${did.assignee}, finished ${new Date(did.updated).toLocaleString()}): "${did.text}". Do not redo it. If jr wants it, tell jr where the file is (team_post). Otherwise do the next item or call team_sleep.`);
+        const askedAgain = o.store.posts({ limit: 200 }).some((p) => p.from === 'user' && Date.parse(p.ts.replace(' ', 'T')) > Date.parse(did.updated) && similar(p.body, job) >= 0.25);
+        if (!askedAgain) throw new Error(`this was already done as ${did.id} (${did.assignee}, finished ${new Date(did.updated).toLocaleString()}): "${did.text}". Do not redo it. If the user wants it, tell the user where the file is (team_post). Otherwise do the next item or call team_sleep.`);
       }
       if (open.filter((t) => t.assignee === w).length >= 2) throw new Error(`${w} already has 2 open tasks: give it to another free worker (${o.cfg.workers.filter((x) => x !== w && getSettings(o.store).workers.includes(x)).join(', ') || 'none'}), or call team_sleep and stop.`);
       // Create the task right now (not on the next pass): two quick calls would otherwise both pass the
@@ -96,13 +96,13 @@ export function startApi(o: Orchestrator, onPost: () => void) {
       const id = 'T' + (1 + Math.max(0, ...tasks.map((t) => Number(t.id.replace(/\D/g, '')) || 0)));
       tasks.push({ id, assignee: w, text: job, status: 'open', attempts: 0, by: 'main', created: now, updated: now });
       o.store.saveTasks(tasks); o.log(`task ${id} for ${w}: ${job}`);
-      linkTask(o, id, now);   // request ledger: which jr request this job serves
+      linkTask(o, id, now);   // request ledger: which user request this job serves
       const lines = [];
       if (model) lines.push(`MODEL ${w}=${model}`);
       if (b.tools) lines.push(`TOOLS ${w}=${String(b.tools).toLowerCase()}`);
       lines.push(`TASK ${w}: ${job}`);
       o.store.addPost('main', w, lines.join('\n'), { cmd: true, source: 'team_assign' }); onPost();
-      return { ok: true, task: id, note: `${id} assigned to ${w}; it starts within seconds and ${w} will report back. Assign the other parts of the request if any (one call each), then tell jr your plan (team_post to jr), then team_sleep.` };
+      return { ok: true, task: id, note: `${id} assigned to ${w}; it starts within seconds and ${w} will report back. Assign the other parts of the request if any (one call each), then tell the user your plan (team_post to the user), then team_sleep.` };
     },
     cancel: (b, agent) => {
       if (agent !== 'main') throw new Error('only main cancels tasks');
@@ -113,23 +113,23 @@ export function startApi(o: Orchestrator, onPost: () => void) {
       if (agent !== 'main') throw new Error('only main sleeps');
       // Calls made in the same turn arrive together and sleep was checked before the post beside it landed: let them land.
       await new Promise((r) => setTimeout(r, 600));
-      // Sleeping marks the agenda handled, so it is refused while jr's request has had no action this pass (seen: a
+      // Sleeping marks the agenda handled, so it is refused while the user's request has had no action this pass (seen: a
       // team_assign with wrong arguments failed in OpenClaw, team_sleep in the same turn succeeded, and the request
       // was silently dropped).
       const agenda = o.store.get<{ run: string; n: number }>('mainAgenda', { run: '', n: 0 });
       if (agenda.run === currentMainRun() && agenda.n > 0 && o.store.get('mainActedRun', '') !== currentMainRun())
-        throw new Error(`not yet: your agenda has ${agenda.n} item(s) and you have not acted on any this pass. Do item 1 now: team_assign with worker (e.g. "worker") and job (naming the file to write), or team_post to jr to answer. Then team_sleep.`);
-      // A refused team_assign must be dealt with first: retried, or explained to jr in a post made after seeing the
-      // refusal (seen: assign refused, "assigned" posted to jr and sleep, all in the same turn - nothing ran).
+        throw new Error(`not yet: your agenda has ${agenda.n} item(s) and you have not acted on any this pass. Do item 1 now: team_assign with worker (e.g. "worker") and job (naming the file to write), or team_post to the user to answer. Then team_sleep.`);
+      // A refused team_assign must be dealt with first: retried, or explained to the user in a post made after seeing the
+      // refusal (seen: assign refused, "assigned" posted to the user and sleep, all in the same turn - nothing ran).
       const fail = o.store.get<{ run: string; at: number; msg: string } | null>('mainAssignFail', null);
       const act = o.store.get<{ run: string; at: number } | null>('mainActAt', null);
       if (fail && fail.run === currentMainRun() && !(act && act.run === fail.run && act.at > fail.at + 1000))
-        throw new Error(`not yet: your team_assign was refused (${fail.msg.slice(0, 200)}). Fix the job and call team_assign again, or tell jr in one line why it cannot be done (team_post). Then team_sleep.`);
+        throw new Error(`not yet: your team_assign was refused (${fail.msg.slice(0, 200)}). Fix the job and call team_assign again, or tell the user in one line why it cannot be done (team_post). Then team_sleep.`);
       const m = Math.max(0, Math.min(60, Number(b.minutes) || 0));
       writeFileSync(join(o.cfg.logDir, 'main-sleep-until.txt'), new Date(Date.now() + m * 60000).toISOString());
       o.store.set('mainSleptRun', currentMainRun());   // further changes this pass are refused (see `guardSlept`)
       commitHandled(o);   // everything this pass's agenda showed is now handled
-      return { ok: true, note: `Your pass is over (next one in about ${m} min, sooner if jr posts or a worker reports). Stop now: reply with one short line and do not call any more tools.` };
+      return { ok: true, note: `Your pass is over (next one in about ${m} min, sooner if the user posts or a worker reports). Stop now: reply with one short line and do not call any more tools.` };
     },
     say: (b, agent) => {
       const to = String(b.to || 'all').replace(/[^\w-]/g, '') || 'all', msg = String(b.message || '').trim(); if (!msg) throw new Error('message is empty');
@@ -139,7 +139,7 @@ export function startApi(o: Orchestrator, onPost: () => void) {
     },
     read: async (b, agent) => {
       // main never waits: its runs are short passes, and a reply wakes it anyway (seen: a 120 s read held main for
-      // 6 min while jr's next post sat unanswered). The cap stays under the plugin's 60 s call timeout.
+      // 6 min while the user's next post sat unanswered). The cap stays under the plugin's 60 s call timeout.
       if (agent === 'main') { const m = o.store.readTalk(agent); return m.length ? { messages: m } : { messages: [], note: 'No messages. Do not wait for replies: finish your agenda, then team_sleep. Replies wake you.' }; }
       const until = Date.now() + Math.min(45, Math.max(0, Number(b.wait) || 0)) * 1000;
       for (;;) { const m = o.store.readTalk(agent); if (m.length || Date.now() >= until) return { messages: m }; await new Promise((r) => setTimeout(r, 2000)); }
@@ -197,8 +197,8 @@ export function startApi(o: Orchestrator, onPost: () => void) {
           o.store.set('mainActedRun', currentMainRun());
           o.store.set('mainActAt', { run: currentMainRun(), at: Date.now() });
           if (m![1] === 'assign') o.store.set('mainAssignFail', null);
-          // jr's posts count as answered only up to what main had seen when it acted (its brief), not every post
-          // older than main's reply (seen: a report on the last job "answered" jr's follow-up sent seconds before it).
+          // the user's posts count as answered only up to what main had seen when it acted (its brief), not every post
+          // older than main's reply (seen: a report on the last job "answered" the user's follow-up sent seconds before it).
           const seen = o.store.get<{ post: number } | null>('mainBriefSeen', null)?.post ?? 0;
           if (seen > o.store.get<number>('mainAnsweredUpTo', 0)) o.store.set('mainAnsweredUpTo', seen);
         }

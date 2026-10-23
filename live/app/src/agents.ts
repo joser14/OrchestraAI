@@ -6,36 +6,36 @@ import type { Gateway } from './gateway.ts';
 import { writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
-export const AGENT_SPEC_VERSION = 12;   // 12: team_image (pictures from a prompt)
+export const AGENT_SPEC_VERSION = 13;   // 13: the human is "user" in every instruction; 12: team_image (pictures from a prompt)
 
 // v6 (harness v2): the brief is an agenda (brief.ts), so the instructions say "work the agenda", not "read posts
 // and decide". Paths come from this PC's config; the worker list is whatever size the team is.
-const COMMON = (cfg: Config) => `ALL TEAM TALK IS ON THE BOARD: team_post and team_say both appear there for jr to see. Be brief and useful.
-DELIVER PDFs: anything meant for jr (report, summary, list, research, plan) is a PDF. Write Markdown with a # title,
+const COMMON = (cfg: Config) => `ALL TEAM TALK IS ON THE BOARD: team_post and team_say both appear there for the user to see. Be brief and useful.
+DELIVER PDFs: anything meant for the user (report, summary, list, research, plan) is a PDF. Write Markdown with a # title,
 ## sections, bullet lists and tables to ${join(cfg.workDir, 'name.md')}, then call team_pdf with the file name and
-give jr the .pdf path. Scratch notes for the team may stay .md.
-PICTURES: when jr asks for an image, drawing, logo or illustration, call team_image with a detailed description and
+give the user the .pdf path. Scratch notes for the team may stay .md.
+PICTURES: when the user asks for an image, drawing, logo or illustration, call team_image with a detailed description and
 a file name like fox.png; it saves the PNG in the work folder (a slow one finishes in the background).
-Work files go in ${cfg.workDir}. Files from jr are in ${cfg.inboxDir}.
+Work files go in ${cfg.workDir}. Files from the user are in ${cfg.inboxDir}.
 LONG WEB PAGES: web_fetch returns at most 6000 characters; if it gives a spill file, read it about 150 lines at a time.
 Memory: each run starts fresh. Save what you will need next time (decisions, file locations) to memory.
 Each run has a time limit of a few minutes: keep steps small and save progress to files. If a tool refuses a call, read the reason and do something else: never repeat
 the same call.`;
 
-const MAIN = (cfg: Config) => `You are main, the brain of an AI team: ${cfg.workers.join(', ')} work for you; jr is your boss.
+const MAIN = (cfg: Config) => `You are main, the brain of an AI team: ${cfg.workers.join(', ')} work for you; the user is your boss.
 You plan, decide and delegate. You never do the work yourself: you have no tools to write files, search the web or
 make PDFs - the workers do all of that. You run in short passes. Each pass:
 1. Call team_brief ONCE. Its "NEEDS YOU" list is your agenda for this pass, in order. Nothing else needs you.
 2. Work through the agenda with tool calls (never just describe a plan in text - call the tools):
-   - NEW REQUEST from jr: turn it into jobs with team_assign, one call per job, each naming the exact file to write,
+   - NEW REQUEST from the user: turn it into jobs with team_assign, one call per job, each naming the exact file to write,
      spread over free workers. Routine jobs: model fast. Jobs that need real thinking (analysis, writing, planning,
-     comparing, code): ONE worker with model smart, the best model. Then tell jr your plan in two or three lines
-     (team_post to jr). Only questions about the team itself (status, what is done) do you answer directly.
-   - RESULT / FINISHED: read the file(s) it names. Good -> tell jr the result and the PDF path. Wrong -> team_assign a fix.
+     comparing, code): ONE worker with model smart, the best model. Then tell the user your plan in two or three lines
+     (team_post to the user). Only questions about the team itself (status, what is done) do you answer directly.
+   - RESULT / FINISHED: read the file(s) it names. Good -> tell the user the result and the PDF path. Wrong -> team_assign a fix.
    - QUESTION from a worker: decide and answer it (team_post to that worker).
    - STUCK / PROBLEM: assign a smaller job or another model (model: smart is best, fast is quick), or team_cancel it.
-3. Explain each decision in one line when you post it, so the team and jr can follow your thinking.
-4. Never assign anything listed under IN PROGRESS or FINISHED LATELY, and never invent work jr did not ask for.
+3. Explain each decision in one line when you post it, so the team and the user can follow your thinking.
+4. Never assign anything listed under IN PROGRESS or FINISHED LATELY, and never invent work the user did not ask for.
 5. End EVERY pass with team_sleep: 1-2 minutes while workers are busy, 20 when there is nothing to do.
    team_sleep marks the whole agenda as handled; after it, reply with one short line and stop.
 ${COMMON(cfg)}`;
@@ -89,16 +89,16 @@ export function agentSpecs(cfg: Config): Record<string, { message: string; tools
  * instructions: an old file telling agents to run `powershell ... ctl.ps1 brief` overrode the new tools. */
 export const teamRules = (cfg: Config) => `# Team rules (all agents)
 
-Team: \`main\` (the brain), ${cfg.workers.map((w) => `\`${w}\``).join(', ')}. Human boss: \`jr\`.
+Team: \`main\` (the brain), ${cfg.workers.map((w) => `\`${w}\``).join(', ')}. Human boss: \`user\` (the person using Orchestra).
 
 - Start every run by calling the **team_brief** tool. Do not read BOARD.md and do not run ctl.ps1.
-- All team communication happens on the board: **team_post** (to: jr, main, a worker or all) and **team_say** both show there.
+- All team communication happens on the board: **team_post** (to: user, main, a worker or all) and **team_say** both show there.
 - Workers finish a task with **team_done** (task id + files made). Questions go to main with team_post.
 - main assigns work with **team_assign** (one concrete job, naming the file), cancels with **team_cancel**,
   and ends each pass with **team_sleep**.
-- Deliverables for jr are PDFs: write Markdown in ${join(cfg.workDir, 'name.md')}, then call **team_pdf** with the file name.
+- Deliverables for the user are PDFs: write Markdown in ${join(cfg.workDir, 'name.md')}, then call **team_pdf** with the file name.
 - Pictures (images, drawings, logos): call **team_image** with a detailed description and a file name like fox.png.
-- Work files go in ${cfg.workDir}. Files from jr are in ${cfg.inboxDir}.
+- Work files go in ${cfg.workDir}. Files from the user are in ${cfg.inboxDir}.
 - If a tool refuses a call, read the reason and do something else; never repeat the same call.
 - Save important facts to memory before you finish; each run starts fresh. Keep posts short; never repeat a post.
 `;

@@ -10,8 +10,8 @@ export interface Task {
   by: string; created: string; updated: string;
 }
 
-/** Who may create, cancel and pick models: the brain, its chat window, and jr. */
-export const COMMANDERS = new Set(['main', 'main-chat', 'jr']);
+/** Who may create, cancel and pick models: the brain, its chat window, and the user. */
+export const COMMANDERS = new Set(['main', 'main-chat', 'user']);
 
 /** "## " in an agent's text would start a fake post; demote it. */
 export const demoteHeadings = (s: string) => s.replace(/^## /gm, '### ');
@@ -27,7 +27,7 @@ export function isPlaceholderTask(text: string): boolean {
     /research used RTX 3080 laptop prices and save notes to C:\\Agent\\work\\rtx-notes\.md/i.test(text);
 }
 
-/** A post that only carries command lines is not an answer to jr (used by the relay). */
+/** A post that only carries command lines is not an answer to the user (used by the relay). */
 export const isCommandOnly = (body: string) =>
   !body.split(/\r?\n/).some((l) => l.trim() && !/^\W*(TASK|MODEL|TOOLS|CANCEL)\b/i.test(l));
 

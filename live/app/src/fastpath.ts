@@ -1,5 +1,5 @@
-// Fast path: a simple, one-step request from jr skips the composer's planning and goes straight to a free worker;
-// Orchestra reports the result to jr itself. On a home PC most asks are like this ("write a haiku", "summarize this
+// Fast path: a simple, one-step request from the user skips the composer's planning and goes straight to a free worker;
+// Orchestra reports the result to the user itself. On a home PC most asks are like this ("write a haiku", "summarize this
 // file"), and the planning pass only added a minute. Anything with steps, research, comparing, or that leans on the
 // conversation still goes through the composer, which plans, splits and checks.
 import { join } from 'node:path';
@@ -49,7 +49,7 @@ export async function judgeSimple(model: string, text: string, timeoutMs = 30000
   } catch { return { ok: false, why: 'model check failed' }; }
 }
 
-/** The worker's job: jr's words, plus a file to write when jr named none (so the result can be checked). */
+/** The worker's job: the user's words, plus a file to write when the user named none (so the result can be checked). */
 export function fastTaskText(text: string, workDir: string): string {
   let job = String(text || '').trim().replace(/\s+/g, ' ');
   // a picture: team_image draws it into a .png (not a Markdown file)

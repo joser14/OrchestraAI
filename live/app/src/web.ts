@@ -84,7 +84,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
   const cfg = o.cfg, ORIGIN = `http://127.0.0.1:${WEB_PORT}`;
   const liveJs = join(import.meta.dirname, '..', 'lib', 'live.cjs'), metricsJs = join(import.meta.dirname, '..', 'lib', 'metrics.cjs');
   const fresh = (p: string) => { delete require.cache[require.resolve(p)]; return require(p); };
-  const post = (to: string, text: string) => { o.store.addPost('jr', to.replace(/[^\w-]/g, '') || 'all', text.replace(/^## /gm, '### ').trim(), { source: 'dashboard' }); opts.soon(); };
+  const post = (to: string, text: string) => { o.store.addPost('user', to.replace(/[^\w-]/g, '') || 'all', text.replace(/^## /gm, '### ').trim(), { source: 'dashboard' }); opts.soon(); };
   const act = (m: string) => appendFileSync(join(cfg.logDir, 'activity.log'), `[${minuteOf(new Date())}:00] [dashboard] ${m}\n`);
 
   async function gpu() {
@@ -310,7 +310,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
         const h: any = await o.gw.rpc('chat.history', { sessionKey, limit: 80 });
         const text = (c: any) => (typeof c === 'string' ? c : (c || []).filter((x: any) => x?.type === 'text').map((x: any) => x.text).join('\n')).trim();
         const messages = (h.messages || []).filter((m: any) => (m.role === 'user' || m.role === 'assistant') && text(m.content))
-          .map((m: any) => ({ who: m.role === 'user' ? 'jr' : 'main', text: m.role === 'user' ? stripContext(text(m.content)) : text(m.content), at: m.timestamp || m.at || '' }));
+          .map((m: any) => ({ who: m.role === 'user' ? 'user' : 'main', text: m.role === 'user' ? stripContext(text(m.content)) : text(m.content), at: m.timestamp || m.at || '' }));
         const fill = h.sessionInfo?.contextTokens && h.sessionInfo?.totalTokens ? h.sessionInfo.totalTokens / h.sessionInfo.contextTokens : 0;
         return { messages, busy: !!h.sessionInfo?.hasActiveRun, window: n, fill };
       } catch { return { messages: [], busy: false, window: n, fill: 0 }; }
@@ -324,7 +324,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
     '/api/automations': () => ({ lines: (existsSync(join(cfg.boardDir, 'AUTOMATIONS.md')) ? readFileSync(join(cfg.boardDir, 'AUTOMATIONS.md'), 'utf8') : '').split(/\r?\n/).filter((l) => /^\s*(daily|every)\s/.test(l)) }),
     '/api/history': async () => { try { const { stdout } = await run('git', ['-C', cfg.workDir, 'log', '--pretty=format:%h|%ad|%s', '--date=format:%m-%d %H:%M', '-n', '12', '--name-only'], { windowsHide: true });
       const commits: any[] = []; let cur: any = null; for (const l of stdout.split('\n')) { const m = /^([0-9a-f]{7,})\|(.+?)\|(.*)$/.exec(l); if (m) { cur = { hash: m[1], when: m[2], msg: m[3], files: [] }; commits.push(cur); } else if (cur && l.trim()) cur.files.push(l.trim()); } return { commits }; } catch { return { commits: [] }; } },
-    // Desktop notifications (desktop/main.cjs polls this): the composer's replies to jr after post id `since`.
+    // Desktop notifications (desktop/main.cjs polls this): the composer's replies to the user after post id `since`.
     // Tools page > Schedules: every OpenClaw scheduled job (Orchestra's own board jobs are listed but protected)
     '/api/schedules': async () => {
       const every = (ms: number) => (ms % 86400000 === 0 ? `every ${ms / 86400000} day${ms === 86400000 ? '' : 's'}` : ms % 3600000 === 0 ? `every ${ms / 3600000} h` : `every ${Math.round(ms / 60000)} min`);
@@ -340,14 +340,14 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
     '/api/version': () => { let version = ''; try { version = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'package.json'), 'utf8')).version || ''; } catch {} return { version }; },
     // Recipes (after goose): saved requests with {blanks}; the page fills them and posts the result to main
     '/api/recipes': () => ({ recipes: recipes() }),
-    // Skills page > Team skills: jr's SKILL.md playbooks (teamskills.ts)
+    // Skills page > Team skills: the user's SKILL.md playbooks (teamskills.ts)
     '/api/teamskills': () => ({ skills: listSkills(cfg).map(({ name, description, body, mtime }) => ({ name, description, body, mtime })) }),
     // Memory page: the team's memory files (memory.ts keeps it to that fixed set)
     '/api/memory': () => ({ files: listMemory(cfg) }),
     '/api/memory/file': (q) => readMemory(cfg, String(q.get('id') || '')),
     '/api/replies': (q) => {
       const since = Number(q.get('since')) || 0, last = o.store.lastPostId();
-      const replies = since ? o.store.posts({ limit: 60 }).filter((p) => p.id > since && p.to === 'jr' && /^main(-relay|-chat|-fast)?$/.test(p.from))
+      const replies = since ? o.store.posts({ limit: 60 }).filter((p) => p.id > since && p.to === 'user' && /^main(-relay|-chat|-fast)?$/.test(p.from))
         .map((p) => ({ id: p.id, from: p.from, text: p.body.replace(/_\(relayed:[^)]*\)_/g, '').replace(/\s+/g, ' ').trim().slice(0, 220) })) : [];
       return { notify: getSettings(o.store).notify !== false, last, replies };
     },
@@ -450,7 +450,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
     '/api/live': () => {
       const live: any = (() => { try { return fresh(liveJs).getLive(30); } catch (e) { return { cards: [], error: String(e) }; } })();
       const cutoff = Date.now() - 30 * 60000;
-      live.messages = o.store.posts({ limit: 60 }).filter((p: any) => p.from !== 'jr' && p.at >= cutoff).slice(-15).map((p) => ({ ts: p.ts, from: p.from, to: p.to, text: p.body.slice(0, 600) }));
+      live.messages = o.store.posts({ limit: 60 }).filter((p: any) => p.from !== 'user' && p.at >= cutoff).slice(-15).map((p) => ({ ts: p.ts, from: p.from, to: p.to, text: p.body.slice(0, 600) }));
       live.decisions = tail(join(cfg.logDir, 'dispatch.log'), 200).split(/\r?\n/).filter((l) => /task T\d+ (for|done|cancelled)|model for|tools for|starting (main|worker)|stopped|aborted|stuck|rejected|archived|helper mirror|relayed/.test(l)).slice(-14).reverse();
       return live;
     },
@@ -658,16 +658,16 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
       await o.gw.runJob(j.id); act(`schedule ${j.name}: run now`);
       return { ok: true, msg: `${j.name} started.` };
     },
-    // Review gate: jr approves a finished task (it becomes done and main reports it) or sends it back with a comment
+    // Review gate: the user approves a finished task (it becomes done and main reports it) or sends it back with a comment
     '/api/tasks/review': (b) => {
       const tasks = o.store.tasks(); const t = tasks.find((x) => x.id === String(b.id || '')); if (!t) throw new Error('no such task');
       if ((t.status as string) !== 'review') throw new Error(`${t.id} is not waiting for review`);
       const now = new Date().toISOString();
-      if (b.approve) { t.status = 'done'; t.updated = now; o.store.saveTasks(tasks); act(`review: approved ${t.id}`); o.log(`task ${t.id}: approved by jr`); opts.soon(); return { ok: true, msg: `${t.id} approved.` }; }
+      if (b.approve) { t.status = 'done'; t.updated = now; o.store.saveTasks(tasks); act(`review: approved ${t.id}`); o.log(`task ${t.id}: approved by the user`); opts.soon(); return { ok: true, msg: `${t.id} approved.` }; }
       const comment = String(b.comment || '').trim(); if (comment.length < 3) throw new Error('say what to change');
       t.status = 'open'; t.updated = now; o.store.saveTasks(tasks);
-      o.store.addPost('jr', t.assignee, `Changes needed on ${t.id}: ${comment}\nFix exactly this, then team_done ${t.id} again.`, { source: 'review' });
-      act(`review: changes requested on ${t.id}`); o.log(`task ${t.id}: jr requested changes - back to ${t.assignee}`); opts.soon();
+      o.store.addPost('user', t.assignee, `Changes needed on ${t.id}: ${comment}\nFix exactly this, then team_done ${t.id} again.`, { source: 'review' });
+      act(`review: changes requested on ${t.id}`); o.log(`task ${t.id}: the user requested changes - back to ${t.assignee}`); opts.soon();
       return { ok: true, msg: `${t.id} sent back to ${t.assignee}.` };
     },
     '/api/recipes/save': (b) => {
@@ -733,10 +733,10 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
     },    '/api/setup/run': () => { if (opts.setup.running) return { ok: true, msg: 'setup is already running' }; opts.setup.run().catch(() => {}); return { ok: true, msg: 'setup started' }; },
     '/api/post': (b) => {
       const text = String(b.text || '').trim(); if (!text) throw new Error('empty');
-      // A post while paused means jr wants an answer: resume instead of leaving it unanswered (Pause survives restarts).
+      // A post while paused means the user wants an answer: resume instead of leaving it unanswered (Pause survives restarts).
       const stopped = join(cfg.root, '.stopped'), wasPaused = existsSync(stopped);
       if (wasPaused) { try { unlinkSync(stopped); } catch {} act('team resumed by a post'); }
-      post(String(b.to || 'all'), text); act(`jr posted to ${b.to || 'all'}`);
+      post(String(b.to || 'all'), text); act(`the user posted to ${b.to || 'all'}`);
       return { ok: true, msg: wasPaused ? 'The team was paused, so it has been resumed to answer you.' : '' };
     },
     '/api/link': (b) => {
@@ -823,7 +823,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
 
   // Chat runs in its own session, blind to the board: asked "what did the team just do?" the brain searched its
   // memory and found nothing. Each message carries a short, current team status; the chat view strips it.
-  const CTX_OPEN = '[team status - context for you, not from jr]', CTX_CLOSE = '[/team status]';
+  const CTX_OPEN = '[team status - context for you, not from the user]', CTX_CLOSE = '[/team status]';
   function chatContext() {
     const clip = (s: string, n: number) => { s = s.replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
     const posts = o.store.posts({ limit: 40 }).filter((p) => !p.cmd).slice(-10).map((p) => `${p.ts} ${p.from} -> ${p.to}: ${clip(p.body, 200)}`);
@@ -831,10 +831,10 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
     return `${CTX_OPEN}\nLatest board posts:\n${posts.join('\n') || 'none'}\nTasks:\n${tasks.join('\n') || 'none'}\nWork folder: ${cfg.workDir}\n${CTX_CLOSE}\n`;
   }
   const stripContext = (s: string) => { const i = s.indexOf(CTX_CLOSE); return s.startsWith(CTX_OPEN) && i >= 0 ? s.slice(i + CTX_CLOSE.length).trim() : s; };
-  function chatKey(n: number) { return n === 1 ? 'agent:main:jr-chat' : `agent:main:jr-chat-${n}`; }
+  function chatKey(n: number) { return n === 1 ? 'agent:main:the user-chat' : `agent:main:the user-chat-${n}`; }
   async function ensureChat(n: number) {
     const key = chatKey(n);
-    try { await o.gw.rpc('sessions.create', { key, agentId: 'main', label: `💬 Chat with jr${n > 1 ? ` #${n}` : ''}`, category: 'Team' }); } catch {}
+    try { await o.gw.rpc('sessions.create', { key, agentId: 'main', label: `💬 Chat with the user${n > 1 ? ` #${n}` : ''}`, category: 'Team' }); } catch {}
     return key;
   }
   async function unloadModels() { for (const m of (await ollamaPs()) || []) { try { await fetch('http://127.0.0.1:11434/api/generate', { method: 'POST', body: JSON.stringify({ model: m.name, keep_alive: 0 }) }); } catch {} } }

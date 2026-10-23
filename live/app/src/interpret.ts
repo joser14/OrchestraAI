@@ -1,5 +1,5 @@
-// Interpret step: before the brain plans, one narrow call to the local model rewrites jr's newest message as one
-// clear, standalone instruction ("jr most likely means: ..."), shown at the top of the brain's agenda. A small model
+// Interpret step: before the brain plans, one narrow call to the local model rewrites the user's newest message as one
+// clear, standalone instruction ("The user most likely means: ..."), shown at the top of the brain's agenda. A small model
 // resolves "you missed one" far better as a single focused question than inside the long planning prompt (seen: told
 // "a.tmp is still there", the brain assigned "check if a.tmp exists" and called it done).
 //
@@ -7,7 +7,7 @@
 // - route first: only messages with recent conversation are rewritten; a standalone request costs nothing extra
 // - resolve references ("it", "that one", "the same") to the exact thing named earlier; keep paths, file names and
 //   task ids verbatim; never invent requirements
-// - do not guess: an unresolvable message comes back as "unclear" with one clarifying question for jr
+// - do not guess: an unresolvable message comes back as "unclear" with one clarifying question for the user
 // - constrained output: Ollama structured output (JSON schema), temperature 0, then validated here; any failure or
 //   timeout falls back to the plain agenda, so the step can only add information, never block a request
 import { readdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
@@ -35,18 +35,18 @@ const WINDOW_MS = 30 * 60000;
 const at = (p: Post) => Date.parse(p.ts.replace(' ', 'T'));
 const clip = (s: string, n: number) => { s = s.replace(/_\(relayed:[^)]*\)_/g, '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 
-/** The posts that give jr's message its meaning: jr, main's answers to jr and workers' results, last 30 min. */
+/** The posts that give the user's message its meaning: user, main's answers to the user and workers' results, last 30 min. */
 export function conversationBefore(posts: Post[], msg: Post, workers: string[], max = 8): Post[] {
   const t0 = at(msg);
   return posts.filter((p) => p.id < msg.id && t0 - at(p) < WINDOW_MS && !p.cmd
-    && (p.from === 'jr' || ((p.from === 'main' || p.from === 'main-relay') && p.to === 'jr') || (workers.includes(p.from) && /^\s*DONE\s+T\d+/i.test(p.body))))
+    && (p.from === 'user' || ((p.from === 'main' || p.from === 'main-relay') && p.to === 'user') || (workers.includes(p.from) && /^\s*DONE\s+T\d+/i.test(p.body))))
     .slice(-max);
 }
 
 /** Check a finished job against the folders as they are now, for what can be checked without a model:
  *  "delete/remove a.tmp" -> gone, "delete the .tmp files" -> none left, "keep keep.txt" -> still there, in each
  *  work sub-folder the job names (or the work folder itself). The brain sees the result in its agenda (seen: the
- *  worker's command matched nothing, it reported "deleted", and the brain passed that on to jr). */
+ *  worker's command matched nothing, it reported "deleted", and the brain passed that on to the user). */
 export function verifyFiles(text: string, workDir: string): { problems: string[]; checked: number } {
   const snap = folderSnapshot([text], workDir, 1000);
   const dirs = snap ? snap.split('\n').map((l) => l.replace(/ now contains:.*$/, '')) : [workDir];
@@ -111,18 +111,18 @@ export function dependsOnContext(body: string): boolean {
   return words < 10 || STRONG.test(text) || (words < 16 && WEAK.test(text));
 }
 
-export const SYSTEM = `You read a short chat between jr (the boss) and an AI team, and rewrite jr's LATEST message as ONE clear,
+export const SYSTEM = `You read a short chat between the user (the boss) and an AI team, and rewrite the user's LATEST message as ONE clear,
 standalone instruction the team can act on without seeing the chat.
 Rules:
-- Use the conversation and the task list only to work out what jr's latest message refers to. Replace words like
+- Use the conversation and the task list only to work out what the user's latest message refers to. Replace words like
   "it", "that", "the same", "one", "there" with the exact thing named earlier (folder, file, task id).
 - Copy paths, file names, folder names and task ids exactly as they appear.
-- If jr says earlier work is wrong, missing or not done, say plainly what must be fixed or redone, and name the task.
-- Do not add requirements jr did not ask for. Do not explain. Do not answer jr.
+- If the user says earlier work is wrong, missing or not done, say plainly what must be fixed or redone, and name the task.
+- Do not add requirements the user did not ask for. Do not explain. Do not answer the user.
 - If the latest message already stands on its own, repeat its meaning in clear words.
-- If you cannot tell what jr means, set kind "unclear", confidence "low", and write one short question for jr in "ask".
+- If you cannot tell what the user means, set kind "unclear", confidence "low", and write one short question for the user in "ask".
 kind: new_request (a new job), follow_up (more about the last job), correction (earlier work is wrong or incomplete),
-question (jr asks about the team or a result), chit_chat (greeting/thanks), unclear.`;
+question (the user asks about the team or a result), chit_chat (greeting/thanks), unclear.`;
 
 export const SCHEMA = {
   type: 'object',
@@ -131,21 +131,21 @@ export const SCHEMA = {
     means: { type: 'string', description: 'one clear standalone instruction' },
     refers_to: { type: 'string', description: 'task id like T4 that the message is about, or empty' },
     confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
-    ask: { type: 'string', description: 'one clarifying question for jr when unclear, else empty' },
+    ask: { type: 'string', description: 'one clarifying question for the user when unclear, else empty' },
   },
   required: ['kind', 'means', 'refers_to', 'confidence', 'ask'],
 };
 
-/** The user turn: the conversation, the recent tasks (with each worker's note), and jr's latest message. */
+/** The user turn: the conversation, the recent tasks (with each worker's note), and the user's latest message. */
 export function buildPrompt(msg: Post, convo: Post[], tasks: Task[], workDir: string, snapshot = ''): string {
   const lines = convo.map((p) => `${p.from}: ${clip(p.body, 400)}`);
   const recent = tasks.slice(-6).map((t) => `${t.id} [${t.status}] for ${t.assignee}: ${clip(t.text, 220)}`);
   return [`Work folder: ${workDir}`, '', 'Recent tasks:', ...(recent.length ? recent : ['none']),
     ...(snapshot ? ['', 'Folders mentioned, as they are right now (trust this over what anyone claimed):', snapshot] : []), '', 'Conversation (oldest first):', ...lines, '',
-    `jr's LATEST message: ${clip(msg.body, 600)}`, '', 'Answer with the JSON object only.'].join('\n');
+    `The user's LATEST message: ${clip(msg.body, 600)}`, '', 'Answer with the JSON object only.'].join('\n');
 }
 
-/** Validate the model's JSON; null when it is unusable (the agenda then shows jr's message as it is). */
+/** Validate the model's JSON; null when it is unusable (the agenda then shows the user's message as it is). */
 export function parseInterpretation(raw: string, tasks: Pick<Task, 'id'>[]): Interpretation | null {
   let j: any; try { j = JSON.parse(String(raw).trim().replace(/^```(?:json)?|```$/g, '')); } catch { return null; }
   if (!j || typeof j !== 'object') return null;
@@ -171,12 +171,12 @@ export async function callModel(model: string, prompt: string, timeoutMs = 60000
 
 /** The agenda lines for an interpretation (first line goes at the top of NEEDS YOU). */
 export function agendaHint(i: Interpretation, task?: Task): string {
-  let s = `jr most likely means: "${i.means}"`;
+  let s = `The user most likely means: "${i.means}"`;
   if ((i.kind === 'correction' || i.kind === 'follow_up') && task)
-    s += `\n   This is about ${task.id} (${clip(task.text, 160)}). jr says it is not right yet: assign the fix itself (redo it properly, naming what to change). Do not assign a job that only checks.`;
-  else if (i.kind === 'question') s += '\n   jr asked a question: answer it with team_post to jr if the brief has the answer; otherwise assign a worker to find out.';
-  else if (i.kind === 'chit_chat') s += '\n   No job needed: reply to jr in one short line (team_post).';
+    s += `\n   This is about ${task.id} (${clip(task.text, 160)}). The user says it is not right yet: assign the fix itself (redo it properly, naming what to change). Do not assign a job that only checks.`;
+  else if (i.kind === 'question') s += '\n   The user asked a question: answer it with team_post to the user if the brief has the answer; otherwise assign a worker to find out.';
+  else if (i.kind === 'chit_chat') s += '\n   No job needed: reply to the user in one short line (team_post).';
   if (i.snapshot) s += `\n   Right now: ${i.snapshot.replace(/\n/g, '; ')}. Use these exact names; never invent a folder or file.`;
-  if (i.kind === 'unclear' || i.confidence === 'low') s += `\n   Not sure? Ask jr instead of guessing${i.ask ? `: "${i.ask}"` : ''} (team_post to jr).`;
+  if (i.kind === 'unclear' || i.confidence === 'low') s += `\n   Not sure? Ask the user instead of guessing${i.ask ? `: "${i.ask}"` : ''} (team_post to the user).`;
   return s;
 }

@@ -8,10 +8,10 @@ import { Compat } from '../src/compat.ts';
 
 test('a post appended to BOARD.md by the GUI is never overwritten by the export', () => {
   const dir = mkdtempSync(join(tmpdir(), 'trav-compat-'));
-  writeFileSync(join(dir, 'BOARD.md'), '# Agent Board\n\n## [2026-10-11 10:00] jr -> main\nfirst\n');
+  writeFileSync(join(dir, 'BOARD.md'), '# Agent Board\n\n## [2026-10-11 10:00] user -> main\nfirst\n');
   const store = new Store(':memory:'); const c = new Compat(store, dir);
   c.importInitial(); c.exportAll([]);
-  appendFileSync(join(dir, 'BOARD.md'), '\n## [2026-10-11 17:32] jr -> main\nplease make the planets PDF\n');   // GUI append
+  appendFileSync(join(dir, 'BOARD.md'), '\n## [2026-10-11 17:32] user -> main\nplease make the planets PDF\n');   // GUI append
   store.addPost('system', 'main', 'something Orchestra posted during the pass');
   const late = c.exportAll([]);
   assert.equal(late, 1, 'appended post imported before the rewrite');

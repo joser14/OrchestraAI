@@ -1,7 +1,7 @@
 // Tool-call rescue between OpenClaw and Ollama. With thinking on, Qwen3 sometimes opens its <think> block, writes
 // the tool call inside it (<tool_call>{"name": ..., "arguments": ...}</tool_call>) and stops without closing it.
 // Ollama's parser then files everything as thinking, OpenClaw sees no tool call, and the run ends with nothing done
-// (seen on 2026-10-14: the composer "ran" for 18 s and dropped jr's request). This proxy passes every request through
+// (seen on 2026-10-14: the composer "ran" for 18 s and dropped the user's request). This proxy passes every request through
 // untouched and, only when a /api/chat reply ends with no tool calls but holds complete <tool_call> blocks in its
 // thinking or text, adds them as real tool calls before the final chunk. Any model with this habit is covered;
 // a reply that already has tool calls is never changed.

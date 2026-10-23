@@ -5,7 +5,7 @@ appId: ai.orchestra.desktop
 productName: Orchestra
 copyright: Copyright © 2026 Orchestra
 directories:
-  output: dist   # Orchestra.cmd -build copies the installer to E:\Orchestra\installer
+  output: dist   # "Orchestra.cmd build" copies the installer into the installer folder
   buildResources: assets
 files:
   - main.cjs

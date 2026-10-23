@@ -37,13 +37,13 @@ function fakeTeam() {
   return { o, store, root };
 }
 
-test('agenda: a jr request is new until a pass ends with team_sleep; finished work is listed as done', () => {
+test('agenda: a the user request is new until a pass ends with team_sleep; finished work is listed as done', () => {
   const { o, store, root } = fakeTeam();
-  store.addPost('jr', 'main', 'Make a PDF about the planets');
+  store.addPost('user', 'main', 'Make a PDF about the planets');
   let b = brief(o, 'main');
-  assert.match(b, /NEW REQUEST from jr/); assert.match(b, /planets/);
+  assert.match(b, /NEW REQUEST from the user/); assert.match(b, /planets/);
   // main crashed before team_sleep: the request is still on the agenda
-  b = brief(o, 'main'); assert.match(b, /NEW REQUEST from jr/);
+  b = brief(o, 'main'); assert.match(b, /NEW REQUEST from the user/);
   commitHandled(o);   // team_sleep
   b = brief(o, 'main'); assert.doesNotMatch(b, /NEW REQUEST/); assert.match(b, /Nothing needs you/);
   assert.match(b, /EARLIER REQUESTS \(already handled\)/);

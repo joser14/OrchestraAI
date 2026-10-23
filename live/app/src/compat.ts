@@ -76,7 +76,7 @@ export class Compat {
     this.store.set('exportedKeys', posts.map(key));
     atomicWrite(this.tasksFile, JSON.stringify(tasks, null, 2));
     const rows = tasks.map((t) => `| ${t.id} | ${t.assignee} | ${t.status} | ${t.attempts} | ${t.text.replace(/\|/g, '/')} |`);
-    atomicWrite(this.tasksMd, ['# Tasks', '', 'Managed by Orchestra: main creates tasks with `TASK worker: ...`, workers close them with `DONE T<n>`, main or jr can `CANCEL T<n>`.', '',
+    atomicWrite(this.tasksMd, ['# Tasks', '', 'Managed by Orchestra: main creates tasks with `TASK worker: ...`, workers close them with `DONE T<n>`, main or the user can `CANCEL T<n>`.', '',
       '| ID | For | Status | Tries | Task |', '|---|---|---|---|---|', ...rows].join('\n') + '\n');
     return late;
   }

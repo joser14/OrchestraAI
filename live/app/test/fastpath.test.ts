@@ -25,7 +25,7 @@ test('a picture request is drawn with team_image into a .png, not written as Mar
   assert.equal(fastTaskText('Draw a watercolor fox sitting in the snow', 'C:\\w'), 'Draw a watercolor fox sitting in the snow Use team_image and save it as C:\\w\\watercolor-fox-sitting-snow.png');
   assert.equal(fastTaskText('Make a logo for my bakery as bakery-logo.png', 'C:\\w'), 'Make a logo for my bakery as C:\\w\\bakery-logo.png Use team_image.');
 });
-test('the worker job names a file to write when jr did not, and asks for a PDF when jr did', () => {
+test('the worker job names a file to write when the user did not, and asks for a PDF when the user did', () => {
   const t = fastTaskText('Write a limerick about cats as a PDF', 'C:\\w');
   assert.match(t, /Save the result as C:\\w\\limerick-cats-pdf\.md|Save the result as C:\\w\\[\w-]+\.md/);
   assert.match(t, /then make it a PDF with team_pdf$/);

@@ -52,18 +52,18 @@ test('verifyFiles checks moves, renames, new folders and real PDFs', () => {
 });
 
 test('a standalone first message is not rewritten (no extra call)', () => {
-  const posts = [P(1, 'jr', 'main', 'make me a PDF about octopuses')];
+  const posts = [P(1, 'user', 'main', 'make me a PDF about octopuses')];
   assert.equal(needsInterpret(posts, posts[0], W), false);
 });
 
-test('a follow-up within 30 min is rewritten, with jr, main and DONE posts as context but not commands', () => {
+test('a follow-up within 30 min is rewritten, with user, main and DONE posts as context but not commands', () => {
   const posts = [
-    P(1, 'jr', 'main', 'delete the .tmp files in junk4, keep keep.txt', '2026-10-14 17:20'),
+    P(1, 'user', 'main', 'delete the .tmp files in junk4, keep keep.txt', '2026-10-14 17:20'),
     P(2, 'main', 'worker', 'TASK worker: ...', '2026-10-14 17:20', true),
     P(3, 'worker', 'main', 'Starting T4', '2026-10-14 17:21'),
     P(4, 'worker', 'main', 'DONE T4\ndeleted the .tmp files', '2026-10-14 17:22'),
-    P(5, 'main', 'jr', 'Done: the .tmp files are deleted.', '2026-10-14 17:23'),
-    P(6, 'jr', 'main', 'you missed one', '2026-10-14 17:25'),
+    P(5, 'main', 'user', 'Done: the .tmp files are deleted.', '2026-10-14 17:23'),
+    P(6, 'user', 'main', 'you missed one', '2026-10-14 17:25'),
   ];
   assert.equal(needsInterpret(posts, posts[5], W), true);
   assert.deepEqual(conversationBefore(posts, posts[5], W).map((p) => p.id), [1, 4, 5]);
@@ -78,21 +78,21 @@ test('only messages that lean on the conversation are rewritten', () => {
 });
 
 test('a clear request after a conversation goes straight to the brain', () => {
-  const posts = [P(1, 'jr', 'main', 'delete junk4', '2026-10-14 17:20'), P(2, 'jr', 'main', 'Write a two-line haiku about GPUs to gpu-haiku2.md in the work folder.', '2026-10-14 17:25')];
+  const posts = [P(1, 'user', 'main', 'delete junk4', '2026-10-14 17:20'), P(2, 'user', 'main', 'Write a two-line haiku about GPUs to gpu-haiku2.md in the work folder.', '2026-10-14 17:25')];
   assert.equal(needsInterpret(posts, posts[1], W), false);
 });
 
 test('conversation older than 30 min does not count', () => {
-  const posts = [P(1, 'jr', 'main', 'delete junk4', '2026-10-14 16:00'), P(2, 'jr', 'main', 'you missed one', '2026-10-14 17:00')];
+  const posts = [P(1, 'user', 'main', 'delete junk4', '2026-10-14 16:00'), P(2, 'user', 'main', 'you missed one', '2026-10-14 17:00')];
   assert.equal(needsInterpret(posts, posts[1], W), false);
 });
 
 test('the prompt carries tasks, the conversation and the latest message verbatim', () => {
-  const posts = [P(1, 'jr', 'main', 'delete the .tmp files in junk4'), P(2, 'jr', 'main', 'a.tmp is still there')];
+  const posts = [P(1, 'user', 'main', 'delete the .tmp files in junk4'), P(2, 'user', 'main', 'a.tmp is still there')];
   const s = buildPrompt(posts[1], [posts[0]], [T4], 'E:\\w');
   assert.match(s, /T4 \[done\] for worker/);
-  assert.match(s, /jr: delete the \.tmp files in junk4/);
-  assert.match(s, /jr's LATEST message: a\.tmp is still there/);
+  assert.match(s, /user: delete the \.tmp files in junk4/);
+  assert.match(s, /The user's LATEST message: a\.tmp is still there/);
 });
 
 test('valid JSON is accepted; unknown task ids and enum values are cleaned up', () => {
@@ -108,11 +108,11 @@ test('broken or empty output is rejected (the agenda stays as it was)', () => {
   assert.ok(parseInterpretation('```json\n{"kind":"question","means":"What is the team doing?","refers_to":"","confidence":"high","ask":""}\n```', [T4]));
 });
 
-test('agenda: a correction names the task and forbids a check-only job; low confidence suggests asking jr', () => {
+test('agenda: a correction names the task and forbids a check-only job; low confidence suggests asking the user', () => {
   const fix = agendaHint({ kind: 'correction', means: 'Delete a.tmp from junk4.', refersTo: 'T4', confidence: 'high', ask: '' }, T4);
-  assert.match(fix, /^jr most likely means: "Delete a\.tmp from junk4\."/);
+  assert.match(fix, /^The user most likely means: "Delete a\.tmp from junk4\."/);
   assert.match(fix, /This is about T4/);
   assert.match(fix, /Do not assign a job that only checks/);
-  const unsure = agendaHint({ kind: 'unclear', means: 'jr wants something cleaned', refersTo: '', confidence: 'low', ask: 'Which folder should be cleaned?' });
-  assert.match(unsure, /Ask jr instead of guessing: "Which folder should be cleaned\?"/);
+  const unsure = agendaHint({ kind: 'unclear', means: 'the user wants something cleaned', refersTo: '', confidence: 'low', ask: 'Which folder should be cleaned?' });
+  assert.match(unsure, /Ask the user instead of guessing: "Which folder should be cleaned\?"/);
 });

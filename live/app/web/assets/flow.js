@@ -35,7 +35,7 @@
     web_search: ['Searching the web', 'globe'], web_fetch: ['Reading a web page', 'globe'], browser: ['Using the browser', 'globe'], image: ['Looking at an image', 'eye'],
     sessions_spawn: ['Starting a helper', 'gear'], sessions_send: ['Messaging a helper', 'chat'], memory_search: ['Searching memory', 'brain'], memory_get: ['Reading memory', 'brain'],
   };
-  const NAMES = { you: ['You', 'jr'], main: ['Composer', 'main'], out: ['Output', 'work folder'] };
+  const NAMES = { you: ['You', 'user'], main: ['Composer', 'main'], out: ['Output', 'work folder'] };
   const nameOf = (id) => NAMES[id] ? NAMES[id][0] : id.startsWith('worker') ? `Worker ${wnum(id)}` : id;
   const svg = (paths, cls) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"${cls ? ` class="${cls}"` : ''}>${paths}</svg>`;
   const toolInfo = (name) => TOOL[name] || [String(name || 'Working').replace(/_/g, ' '), 'gear'];
@@ -118,8 +118,8 @@
   // ---------- you ----------
   function youCard(mainLive) {
     const n = skeleton('you'); n.querySelector('.fn-state').textContent = 'Directing the team';
-    const mine = board.filter((p) => p.from === 'jr'); const last = mine[mine.length - 1];
-    const replies = last ? board.filter((p) => p.to === 'jr' && board.indexOf(p) > board.indexOf(last)) : [];
+    const mine = board.filter((p) => p.from === 'user'); const last = mine[mine.length - 1];
+    const replies = last ? board.filter((p) => p.to === 'user' && board.indexOf(p) > board.indexOf(last)) : [];
     const waiting = !!last && !replies.length && Date.now() - Date.parse(String(last.ts).replace(' ', 'T')) < 20 * 60000;
     n.classList.toggle('active', waiting);
     setStep(n, waiting ? 'Waiting for the composer' : last ? 'Answered' : 'Ask for anything', last ? String(last.ts).slice(11, 16) : '', waiting ? 50 : last ? 100 : 0, waiting && mainLive);

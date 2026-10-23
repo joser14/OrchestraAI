@@ -1,7 +1,7 @@
 // Memory page: the team's memory files in one place, read and edited from the dashboard.
-//   team      memory/memory.md - jr's standing notes; every agent reads it in its brief (brief.ts teamMemory)
+//   team      memory/memory.md - the user's standing notes; every agent reads it in its brief (brief.ts teamMemory)
 //   shared    memory/*.md      - other shared notes
-//   per agent agents/<a>/MEMORY.md (its long-term notes), agents/<a>/USER.md (what it knows about jr),
+//   per agent agents/<a>/MEMORY.md (its long-term notes), agents/<a>/USER.md (what it knows about the user),
 //             agents/<a>/memory/*.md (OpenClaw's dated daily notes)
 // Files are addressed by an id built from this fixed layout, never by a path from the page, so nothing outside
 // these folders can be read or written.

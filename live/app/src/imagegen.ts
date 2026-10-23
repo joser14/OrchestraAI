@@ -57,7 +57,7 @@ export async function makeImage(c: { store: any; workDir: string; log: (m: strin
   prompt: string, file: string | undefined, o: ImageOpts = {}, waitMs = 50000): Promise<{ done: boolean; file: string; model: string }> {
   if (!String(prompt || '').trim()) throw new Error('say what to draw (prompt)');
   const model = pickImageModel(c.store, c.isImage);
-  if (!model) throw new Error('no image model is installed: jr can install one on the Models page (FLUX.2 klein, 5 GB, or Z-Image Turbo, 12 GB)');
+  if (!model) throw new Error('no image model is installed: the user can install one on the Models page (FLUX.2 klein, 5 GB, or Z-Image Turbo, 12 GB)');
   const name = String(file || '').trim() || imageName(prompt);
   const target = isAbsolute(name) ? name : join(c.workDir, name.replace(/^[\\/]+/, ''));
   if (relative(c.workDir, target).startsWith('..')) throw new Error(`save pictures inside the work folder (${c.workDir})`);

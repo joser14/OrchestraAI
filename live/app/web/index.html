@@ -17,13 +17,13 @@
   :root {
     color-scheme: dark;
     --bg: #070505; --panel: #120b0c; --text: #f3e9ea; --muted: #a3898c; --border: #2e1a1d;
-    --main: #ff2d3d; --worker: #ff7a6b; --jr: #ffb3a8; --other: #c2185b;
+    --main: #ff2d3d; --worker: #ff7a6b; --user: #ffb3a8; --other: #c2185b;
     --ok: #ff8f80; --bad: #ff1f2e;
   }
   :root[data-theme="light"] {
     color-scheme: light;
     --bg: #faf5f5; --panel: #ffffff; --text: #1a0d0f; --muted: #7a5c60; --border: #ecd9db;
-    --main: #c8102e; --worker: #e0453a; --jr: #8a2c22; --other: #9c1050;
+    --main: #c8102e; --worker: #e0453a; --user: #8a2c22; --other: #9c1050;
     --ok: #c8102e; --bad: #8b0000;
   }
   * { box-sizing: border-box; }
@@ -42,7 +42,7 @@
   .a-main { border-color: var(--main); } .a-main .who { color: var(--main); }
   .a-worker { border-color: var(--worker); } .a-worker .who { color: var(--worker); }
   .a-worker2 { border-color: var(--other); } .a-worker2 .who { color: var(--other); }
-  .a-jr { border-color: var(--jr); } .a-jr .who { color: var(--jr); }
+  .a-user { border-color: var(--user); } .a-user .who { color: var(--user); }
   [hidden] { display: none !important; }   /* "form { display: flex }" and friends beat the hidden attribute (the skill editor never hid) */
   form { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); flex-wrap: wrap; }
   textarea { flex: 1 1 300px; min-height: 60px; resize: vertical; font: inherit; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
@@ -101,7 +101,7 @@
   h2 { display: flow-root; }   /* a heading contains its right-floated controls (they squeezed the block below: chat was 21 px wide) */
   .chat { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; padding: 4px 2px; }
   .msg { max-width: 85%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; word-wrap: break-word; font-size: 14px; }
-  .msg.jr { align-self: flex-end; background: color-mix(in srgb, var(--jr) 18%, var(--panel)); border-bottom-right-radius: 4px; }
+  .msg.user { align-self: flex-end; background: color-mix(in srgb, var(--user) 18%, var(--panel)); border-bottom-right-radius: 4px; }
   .msg.main { align-self: flex-start; background: var(--bg); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
   .msg .when { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
   .msg.thinking { color: var(--muted); font-style: italic; }
@@ -478,7 +478,7 @@
   .stor-bar { height: 12px; background: var(--border); position: relative; overflow: hidden; }
   .stor-bar > i { position: absolute; inset: 0 auto 0 0; background: var(--main); }
   .stor-bar > i.low { background: var(--bad); }
-  .stor-bar > b { position: absolute; top: 0; bottom: 0; background: var(--jr); opacity: .85; }
+  .stor-bar > b { position: absolute; top: 0; bottom: 0; background: var(--user); opacity: .85; }
   .mtable { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 12px; }
   .mtable th, .mtable td { text-align: right; padding: 5px 6px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
   .mtable th:first-child, .mtable td:first-child { text-align: left; } .mtable th { color: var(--muted); font-weight: 600; font-size: 11px; }
@@ -567,7 +567,7 @@
   .abar .track { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; } .abar .track i { display: block; height: 100%; border-radius: 4px; }
   .abar .v { text-align: right; font-variant-numeric: tabular-nums; } .abar .meta { grid-column: 2 / 4; font-size: 11.5px; color: var(--muted); }
   /* model library + settings */
-  :root { --k-abliterated: var(--jr); --k-standard: var(--main); --k-custom: var(--other); --warn: #c98a12; }
+  :root { --k-abliterated: var(--user); --k-standard: var(--main); --k-custom: var(--other); --warn: #c98a12; }
   .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
   .flabel { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
   .fsep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
@@ -714,7 +714,7 @@
     <summary class="ghost" title="More">⋯</summary>
     <div class="menu-list">
       <button type="button" class="ghost ctl" data-action="unload" title="Unload models from the GPU now">🧹 Free VRAM</button>
-      <button type="button" id="notifyBtn" class="ghost" title="Desktop notification when an agent posts to jr">🔔 Notify me</button>
+      <button type="button" id="notifyBtn" class="ghost" title="Desktop notification when an agent posts to the user">🔔 Notify me</button>
       <button type="button" id="themeBtn" class="ghost">☀ Light mode</button>
       <button type="button" id="dashBtn" class="ghost" title="Open the OpenClaw Control UI (logged in)">↗ OpenClaw Control UI</button>
     </div>
@@ -1128,7 +1128,7 @@
         <h2 id="tsTitle">New playbook</h2>
         <div class="ts-grid">
           <label>Name <span class="sub">short, lowercase</span><input id="tsName" class="inp" placeholder="report-format" autocomplete="off" spellcheck="false"></label>
-          <label>When to use it <span class="sub">one line: agents match jobs against this</span><input id="tsDesc" class="inp" placeholder="Laying out any report or PDF for jr"></label>
+          <label>When to use it <span class="sub">one line: agents match jobs against this</span><input id="tsDesc" class="inp" placeholder="Laying out any report or PDF for the user"></label>
         </div>
         <label class="ts-body">Steps <span class="sub">numbered steps, an example, edge cases (Markdown)</span>
           <textarea id="tsBody" rows="12" class="inp" placeholder="1. Start with a one-paragraph summary.&#10;2. Then a table: option, price, pros, cons.&#10;3. End with sources as links."></textarea></label>
@@ -1317,7 +1317,7 @@ async function loadBoard() {
   feed.replaceChildren();
   if (!r.posts.length) feed.append(el('div', 'empty', 'No posts yet.'));
   for (const p of r.posts) {
-    const known = ['main', 'worker', 'worker2', 'jr'].includes(p.from) ? 'a-' + p.from : '';
+    const known = ['main', 'worker', 'worker2', 'user'].includes(p.from) ? 'a-' + p.from : '';
     const post = el('div', 'post ' + known);
     const meta = el('div', 'meta');
     meta.append(el('span', 'who', p.from), el('span', null, '→ ' + p.to), el('span', null, p.ts));
@@ -1458,7 +1458,7 @@ async function loadWork() {
   }
 }
 
-// ---- desktop notifications for posts addressed to jr ----
+// ---- desktop notifications for posts addressed to the user ----
 let seenPosts = null;
 function notifyBtnState() {
   const on = 'Notification' in window && Notification.permission === 'granted';
@@ -1471,7 +1471,7 @@ loadBoard = async function () {
   const r = await fetch('/api/board').then((r) => r.json()).catch(() => null);
   if (r && seenPosts !== null && r.posts.length > seenPosts && 'Notification' in window && Notification.permission === 'granted') {
     for (const p of r.posts.slice(seenPosts)) {
-      if (p.to === 'jr') new Notification(`${p.from} → jr`, { body: p.body.slice(0, 200) });
+      if (p.to === 'user') new Notification(`${p.from} → you`, { body: p.body.slice(0, 200) });
     }
   }
   if (r) seenPosts = r.posts.length;
@@ -2242,7 +2242,7 @@ async function loadSkillsPage(force) {
     return card;
   }) : [el('div', 'sub', skFilter === 'ready' ? 'No ready skills match.' : 'No skills match.')]));
 }
-// Team skills: jr's SKILL.md playbooks (list, new, edit, remove)
+// Team skills: the user's SKILL.md playbooks (list, new, edit, remove)
 let tsEditing = '';
 async function loadTeamSkills() {
   const r = await fetch('/api/teamskills').then((x) => x.json()).catch(() => null); const list = (r && r.skills) || [];
@@ -2259,7 +2259,7 @@ async function loadTeamSkills() {
 }
 // starters: the three things a home team most often wants done the same way every time
 const PLAYBOOK_STARTERS = [
-  ['report-format', 'Laying out any report or PDF for jr', '1. Start with a one-paragraph summary of the answer.\n2. Then the details under short headings.\n3. Put any comparison in a table: option, price, pros, cons.\n4. End with the sources as links.\n5. Save it as a .md file in the work folder, then make the PDF with team_pdf.'],
+  ['report-format', 'Laying out any report or PDF for the user', '1. Start with a one-paragraph summary of the answer.\n2. Then the details under short headings.\n3. Put any comparison in a table: option, price, pros, cons.\n4. End with the sources as links.\n5. Save it as a .md file in the work folder, then make the PDF with team_pdf.'],
   ['file-naming', 'Naming any file saved in the work folder', '1. Lowercase words joined by dashes: monitor-comparison.md\n2. Start with what it is, not the date.\n3. Add the date only for things that repeat: weekly-summary-2026-10-23.md\n4. Never overwrite a file: add -2, -3 instead.'],
   ['research-steps', 'Researching a question on the web', '1. Search at least 3 different sources.\n2. Prefer official sites and recent pages (this year).\n3. Note where each fact came from.\n4. If sources disagree, say so and give both.\n5. Finish with a short answer first, then the evidence.'],
 ];
@@ -2550,13 +2550,13 @@ function renderChat(messages, busy, pending) {
   const box = $('chat'); box.replaceChildren();
   if (!messages.length && !pending) box.append(el('div', 'sub', 'Say hi to the composer. It answers here directly (the first reply can take a minute while the model loads).'));
   for (const m of messages) {
-    const b = el('div', 'msg ' + (m.who === 'jr' ? 'jr' : 'main'), m.text);
+    const b = el('div', 'msg ' + (m.who === 'user' ? 'user' : 'main'), m.text);
     const at = typeof m.at === 'number' ? new Date(m.at) : m.at ? new Date(m.at) : null;   // the gateway sends ms or ISO
     const when = at && !isNaN(at) ? at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-    b.append(el('span', 'when', [m.who === 'jr' ? 'You' : 'Composer', when].filter(Boolean).join(' · ')));
+    b.append(el('span', 'when', [m.who === 'user' ? 'You' : 'Composer', when].filter(Boolean).join(' · ')));
     box.append(b);
   }
-  if (pending) box.append(el('div', 'msg jr', pending));
+  if (pending) box.append(el('div', 'msg user', pending));
   if (busy || pending) box.append(el('div', 'msg main thinking', 'The composer is thinking…'));
   box.scrollTop = box.scrollHeight;
 }
@@ -2752,7 +2752,7 @@ async function loadTalkStats() {
   const since = Date.now() - 86400000; const n = {};
   for (const p of b.posts) { if (Date.parse(String(p.ts).replace(' ', 'T')) < since) continue; const who = p.from.replace(/-(relay|chat|helper)$/, ''); n[who] = (n[who] || 0) + 1; }
   const max = Math.max(1, ...Object.values(n));
-  const col = (w) => (w === 'jr' ? 'var(--f-you)' : w === 'main' ? 'var(--f-main)' : w.startsWith('worker') ? `var(--f-w${w === 'worker' ? 1 : w.replace('worker', '')})` : 'var(--muted)');
+  const col = (w) => (w === 'user' ? 'var(--f-you)' : w === 'main' ? 'var(--f-main)' : w.startsWith('worker') ? `var(--f-w${w === 'worker' ? 1 : w.replace('worker', '')})` : 'var(--muted)');
   $('talkStats').replaceChildren(...(Object.keys(n).length ? Object.entries(n).sort((a, c) => c[1] - a[1]).map(([w, v]) => {
     const r = el('div', 'tstat'); const tr = el('div', 'track'); const i = el('i'); i.style.width = Math.round((100 * v) / max) + '%'; i.style.background = col(w); tr.append(i);
     r.append(el('span', null, w), tr, el('span', 'v', String(v))); return r;

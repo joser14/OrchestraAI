@@ -65,7 +65,7 @@ export class Orchestrator {
 
   /** One pass. Safe to call often: re-entrant calls are dropped. */
   async pass(): Promise<void> {
-    // A call during a pass is not dropped but runs right after it (a post from jr landing mid-pass used to wait for
+    // A call during a pass is not dropped but runs right after it (a post from the user landing mid-pass used to wait for
     // the next 30 s tick).
     if (this.busyPass) { this.passAgain = true; return; }
     this.busyPass = true;
@@ -122,12 +122,12 @@ export class Orchestrator {
       const v = reopened.has(key) ? { problems: [] as string[] } : verifyFiles(t.text, this.cfg.workDir);
       if (!v.problems.length) {
         this.taskCost(t, now);
-        // review gate (Settings, off by default): passed the check, now waits for jr's Approve / Request changes
+        // review gate (Settings, off by default): passed the check, now waits for the user's Approve / Request changes
         if (t.by === 'fastpath' && !getSettings(this.store).review) { this.reportFast(t, posts); continue; }
         if (getSettings(this.store).review && t.by !== 'automation') {
           t.status = 'review' as any; t.updated = now.toISOString();
-          this.post('system', 'jr', `${t.id} is ready for your review (${t.assignee}): ${t.text.slice(0, 160)}${t.text.length > 160 ? '…' : ''}\nApprove it or request changes on the Tasks page.`);
-          this.log(`task ${t.id}: passed the check, waiting for jr's review`);
+          this.post('system', 'user', `${t.id} is ready for your review (${t.assignee}): ${t.text.slice(0, 160)}${t.text.length > 160 ? '…' : ''}\nApprove it or request changes on the Tasks page.`);
+          this.log(`task ${t.id}: passed the check, waiting for the user's review`);
         }
         continue;
       }
@@ -146,7 +146,7 @@ export class Orchestrator {
       this.log(`tasks: archived ${n} finished task(s); numbering restarts at T1`);
     }
 
-    // ---- 4. model / tool picks from main or jr ----
+    // ---- 4. model / tool picks from main or the user ----
     if (!this.dryRun) await this.applyPicks(posts, now);
     if (!this.dryRun) await this.applyLight().catch((e) => this.log(`light mode: ${String(e.message).slice(0, 140)}`));
 
@@ -252,9 +252,9 @@ export class Orchestrator {
       const poster = agent === 'main' ? 'main-relay' : agent;
       if (answered || posts.some((p) => (p.from === agent || p.from === poster) && normalise(p.body).includes(probe))) continue;
       let to = 'main';
-      if (agent === 'main') { const lastJr = posts.map((p) => p.from).lastIndexOf('jr'), lastMain = posts.map((p) => p.from).lastIndexOf('main'); to = lastJr > lastMain ? 'jr' : 'all'; }
+      if (agent === 'main') { const lastUser = posts.map((p) => p.from).lastIndexOf('user'), lastMain = posts.map((p) => p.from).lastIndexOf('main'); to = lastUser > lastMain ? 'user' : 'all'; }
       // "Pass complete. Sleeping for 20 minutes." after every idle pass only buried real messages on the Board
-      if (to !== 'jr' && text.length < 200 && !/\bT\d+\b|[\\/]\w/.test(text)
+      if (to !== 'user' && text.length < 200 && !/\bT\d+\b|[\\/]\w/.test(text)
         && /\b(rest(ing)?|sleep(ing)?|pass (is )?(over|complete|done)|next (pass|run)|nothing (new|to do)|no (new |open )?(work|tasks|messages))\b/i.test(text)) continue;
       this.post(poster, to, `${text}\n\n_(relayed: ${agent} answered in its run but did not post)_`);
       this.log(`relayed ${agent}'s answer to the board (to ${to})`);
@@ -339,7 +339,7 @@ export class Orchestrator {
    *  when it did (the composer then stays asleep for this post). */
   private async fastPath(msg: Post, tasks: Task[], now: Date): Promise<boolean> {
     const s = getSettings(this.store); if (s.fastPath === false) return false;
-    // each post is judged once: while main is busy jr's post stays "new" for many passes (no repeat model calls or logs)
+    // each post is judged once: while main is busy the user's post stays "new" for many passes (no repeat model calls or logs)
     if (this.store.get<number>('fastChecked', 0) >= msg.id) return false;
     this.store.set('fastChecked', msg.id);
     if (tasks.some((t) => t.by === 'fastpath' && (t.status === 'open' || (t.status as string) === 'review'))) return false;   // one at a time
@@ -357,12 +357,12 @@ export class Orchestrator {
     tasks.push({ id, assignee: w, text, status: 'open', attempts: 0, by: 'fastpath', created: now.toISOString(), updated: now.toISOString() });
     this.store.saveTasks(tasks);
     this.store.set('fastFor', { ...this.store.get<Record<string, number>>('fastFor', {}), [id + '|' + now.toISOString()]: msg.id });
-    this.post('main-fast', 'jr', `Quick job - ${w} is on it directly (${id}). I'll post the result here.`);
+    this.post('main-fast', 'user', `Quick job - ${w} is on it directly (${id}). I'll post the result here.`);
     this.store.addPost('main', w, `TASK ${w}: ${text}`, { cmd: true, source: 'fastpath' });   // the board's record (cmd: the task already exists, like team_assign)
     this.log(`fast path: ${id} for ${w} (${d.why}): ${text.slice(0, 140)}`);
     return true;
   }
-  /** A fast-path task passed its check: tell jr the result directly (what the worker said, and the files). */
+  /** A fast-path task passed its check: tell the user the result directly (what the worker said, and the files). */
   private reportFast(t: Task, posts: Post[]) {
     // only this task's posts: ids restart after an archive, so an older "DONE T3" can still be on the board
     const since = minuteOf(t.created), mine = [...posts].reverse().filter((p) => p.from === t.assignee && p.ts >= since && new RegExp(`\\b${t.id}\\b`).test(p.body));
@@ -371,37 +371,37 @@ export class Orchestrator {
     const note = done ? done.body.replace(/^\s*DONE\s+T\d+\s*:?\s*/i, '').trim() : '';
     const files = expectedFiles(t.text, this.cfg.workDir).filter((f) => this.stat(f).exists);
     const cost = this.store.get<Record<string, any>>('taskCosts', {})[`${t.id}|${t.created}`];
-    this.post('main-fast', 'jr', `Done (${t.id}, ${t.assignee}${cost ? `, ${cost.secs} s` : ''}): ${note.slice(0, 400) || 'finished.'}${files.length ? `\nFiles: ${files.join(', ')}` : ''}`);
+    this.post('main-fast', 'user', `Done (${t.id}, ${t.assignee}${cost ? `, ${cost.secs} s` : ''}): ${note.slice(0, 400) || 'finished.'}${files.length ? `\nFiles: ${files.join(', ')}` : ''}`);
   }
 
-  /** Learned memory: once jr's latest request has been answered and the team is idle (at most every 5 min), one model
+  /** Learned memory: once the user's latest request has been answered and the team is idle (at most every 5 min), one model
    *  call turns the recent conversation into ADD / UPDATE / DELETE changes to memory/learned.md (Settings: Learn). */
   private learning = false;
   private async learnWhenIdle(posts: Post[]) {
     if (this.learning || getSettings(this.store).learn === false) return;
     if (Date.now() - this.store.get<number>('learnAt', 0) < 5 * 60000) return;
-    const lastJr = [...posts].reverse().find((p) => p.from === 'jr'); if (!lastJr) return;
-    if (lastJr.id <= this.store.get<number>('learnedUpTo', 0)) return;
-    if (!posts.some((p) => p.id > lastJr.id && /^main(-relay|-chat|-fast)?$/.test(p.from) && p.to === 'jr')) return;   // not answered yet
+    const lastUser = [...posts].reverse().find((p) => p.from === 'user'); if (!lastUser) return;
+    if (lastUser.id <= this.store.get<number>('learnedUpTo', 0)) return;
+    if (!posts.some((p) => p.id > lastUser.id && /^main(-relay|-chat|-fast)?$/.test(p.from) && p.to === 'user')) return;   // not answered yet
     const model = String(this.jobs.main?.payload?.model || ''); if (!model.startsWith('ollama/')) return;
     this.learning = true; this.store.set('learnAt', Date.now());
     try {
       const since = this.store.get<number>('learnedUpTo', 0);
-      const convo = posts.filter((p) => p.id > since && !p.cmd && (p.from === 'jr' || (/^main/.test(p.from) && p.to === 'jr') || (this.cfg.workers.includes(p.from) && /^\s*DONE\s+T\d+/i.test(p.body)) || (p.from === 'system' && /not done yet|failed \d+ times/i.test(p.body)))).slice(-20);
-      if (!convo.length) { this.store.set('learnedUpTo', lastJr.id); return; }
+      const convo = posts.filter((p) => p.id > since && !p.cmd && (p.from === 'user' || (/^main/.test(p.from) && p.to === 'user') || (this.cfg.workers.includes(p.from) && /^\s*DONE\s+T\d+/i.test(p.body)) || (p.from === 'system' && /not done yet|failed \d+ times/i.test(p.body)))).slice(-20);
+      if (!convo.length) { this.store.set('learnedUpTo', lastUser.id); return; }
       const items = readLearned(this.cfg);
       const changes = await askModel(model.replace(/^ollama\//, ''), learnPrompt(convo, items));
       const r = applyChanges(items, changes, new Date().toISOString().slice(0, 10));
       if (r.added || r.updated || r.deleted) { writeLearned(this.cfg, r.items); this.log(`learned: ${r.added} new, ${r.updated} updated, ${r.deleted} removed (memory/learned.md, ${r.items.length} entries)`); }
-      this.store.set('learnedUpTo', lastJr.id);
+      this.store.set('learnedUpTo', lastUser.id);
     } catch (e: any) { this.log(`learned: skipped (${String(e?.message || e).slice(0, 120)})`); }
     finally { this.learning = false; }
   }
 
-  /** Interpret jr's newest post once (Settings: "Interpret requests"); any failure just leaves the agenda as it was. */
-  private async interpretJr(posts: Post[], tasks: Task[]) {
+  /** Interpret the user's newest post once (Settings: "Interpret requests"); any failure just leaves the agenda as it was. */
+  private async interpretUser(posts: Post[], tasks: Task[]) {
     if (!getSettings(this.store).interpret) return;
-    const msg = [...posts].reverse().find((p) => p.from === 'jr'); if (!msg) return;
+    const msg = [...posts].reverse().find((p) => p.from === 'user'); if (!msg) return;
     const done = this.store.get<Record<string, Interpretation>>('interpretations', {});
     if (done[msg.id] || !needsInterpret(posts, msg, this.cfg.workers)) return;
     const model = String(this.jobs.main?.payload?.model || '');
@@ -461,32 +461,32 @@ export class Orchestrator {
     const history = this.store.get<string[]>('history', []).filter((h) => now.getTime() - Date.parse(h) < 3600000);
     if (history.length >= this.cfg.maxPerHour) return;
 
-    // main: continuous passes; picks its own rest with "ctl sleep N"; a post from jr wakes it early.
+    // main: continuous passes; picks its own rest with "ctl sleep N"; a post from the user wakes it early.
     const lastRun = this.store.get<Record<string, string>>('lastRun', {});
     const lastMainStart = lastRun.main ? Date.parse(lastRun.main) : 0;
     const froms = posts.map((p) => p.from);
-    const lastJr = froms.lastIndexOf('jr');
-    const jrKey = lastJr >= 0 ? `${posts[lastJr].id}` : '';
-    // Retry: main ran after jr's newest post (it was in that pass's brief) but the post is still unhandled - the
+    const lastUser = froms.lastIndexOf('user');
+    const userKey = lastUser >= 0 ? `${posts[lastUser].id}` : '';
+    // Retry: main ran after the user's newest post (it was in that pass's brief) but the post is still unhandled - the
     // run ended without acting (seen: thinking runs that wrote the tool call into the thinking text). Wake it again,
-    // twice at most per post, instead of leaving jr waiting for the full rest.
-    if (lastJr >= 0 && !this.running('main') && lastMainStart && (now.getTime() - lastMainStart) > 45000) {
-      const p = posts[lastJr], handledUpTo = Math.max(this.store.get<{ post: number } | null>('mainHandled', null)?.post ?? 0, this.store.get<number>('mainAnsweredUpTo', 0));
-      const r = this.store.get<{ id: number; n: number }>('jrRetry', { id: 0, n: 0 });
+    // twice at most per post, instead of leaving the user waiting for the full rest.
+    if (lastUser >= 0 && !this.running('main') && lastMainStart && (now.getTime() - lastMainStart) > 45000) {
+      const p = posts[lastUser], handledUpTo = Math.max(this.store.get<{ post: number } | null>('mainHandled', null)?.post ?? 0, this.store.get<number>('mainAnsweredUpTo', 0));
+      const r = this.store.get<{ id: number; n: number }>('userRetry', { id: 0, n: 0 });
       if (p.id <= this.store.get<number>('postsAtMainStart', 0) && p.id > handledUpTo && (r.id !== p.id || r.n < 2)) {
-        const n = r.id === p.id ? r.n + 1 : 1; this.store.set('jrRetry', { id: p.id, n });
-        this.store.set('wakeMain', true); this.log(`main ended its pass without acting on jr's message - running it again (retry ${n} of 2)`);
+        const n = r.id === p.id ? r.n + 1 : 1; this.store.set('userRetry', { id: p.id, n });
+        this.store.set('wakeMain', true); this.log(`main ended its pass without acting on the user's message - running it again (retry ${n} of 2)`);
       }
     }
     const wakeFlag = join(this.cfg.logDir, 'wake-main.flag');
     if (existsSync(wakeFlag)) { this.store.set('wakeMain', true); try { unlinkSync(wakeFlag); } catch {} }
-    // Any jr post main has not been started for yet (not "newer than main's last post": main's report on earlier
-    // work can land seconds after jr's follow-up and hid it).
-    let jrNew = (!!jrKey && jrKey !== this.store.get('lastJrTriggered', '')) || this.store.get('wakeMain', false);
+    // Any user post main has not been started for yet (not "newer than main's last post": main's report on earlier
+    // work can land seconds after the user's follow-up and hid it).
+    let userNew = (!!userKey && userKey !== this.store.get('lastUserTriggered', '')) || this.store.get('wakeMain', false);
     // Fast path: a simple one-step request goes straight to a free worker; the composer is not woken for it.
-    if (jrNew && !this.store.get('wakeMain', false) && lastJr >= 0 && await this.fastPath(posts[lastJr], tasks, now)) { this.store.set('lastJrTriggered', jrKey); jrNew = false; }
+    if (userNew && !this.store.get('wakeMain', false) && lastUser >= 0 && await this.fastPath(posts[lastUser], tasks, now)) { this.store.set('lastUserTriggered', userKey); userNew = false; }
     // A worker reported to main (finished a task, or asked something) after main's last pass started: main reviews
-    // it now instead of at the end of its rest, so results reach jr minutes sooner. (Fast-path results are reported
+    // it now instead of at the end of its rest, so results reach the user minutes sooner. (Fast-path results are reported
     // by Orchestra itself, so they do not wake main.)
     const sinceStart = this.store.get<number>('postsAtMainStart', 0);
     const fastIds = new Set(tasks.filter((t) => t.by === 'fastpath').map((t) => t.id));
@@ -501,14 +501,14 @@ export class Orchestrator {
       sleepUntil = lastMainStart + (quiet ? this.cfg.idleRestMin : this.cfg.busyRestMin) * 60000;
     }
     const sinceMain = lastMainStart ? (now.getTime() - lastMainStart) / 60000 : 999;
-    // jr never waits for the gap: it only spaces out main's own passes and worker reports.
-    if (!this.running('main') && (jrNew || sinceMain >= this.cfg.mainGapMin) && (jrNew || reportNew || now.getTime() >= sleepUntil)) {
-      if (jrNew) { this.store.set('wakeMain', false); try { unlinkSync(sf); } catch {} }
-      if (jrKey) this.store.set('lastJrTriggered', jrKey);   // whatever woke main, its brief shows jr's newest post
+    // the user never waits for the gap: it only spaces out main's own passes and worker reports.
+    if (!this.running('main') && (userNew || sinceMain >= this.cfg.mainGapMin) && (userNew || reportNew || now.getTime() >= sleepUntil)) {
+      if (userNew) { this.store.set('wakeMain', false); try { unlinkSync(sf); } catch {} }
+      if (userKey) this.store.set('lastUserTriggered', userKey);   // whatever woke main, its brief shows the user's newest post
       if (reportNew) this.store.set('lastReportTriggered', String(report!.id));
-      if (jrNew) await this.interpretJr(posts, tasks);   // "jr most likely means: ..." for the agenda (interpret.ts)
+      if (userNew) await this.interpretUser(posts, tasks);   // "the user most likely means: ..." for the agenda (interpret.ts)
       this.store.set('postsAtMainStart', this.store.lastPostId());
-      await this.start('main', jrNew ? 'new post from jr' : reportNew ? `${report!.from} reported` : 'next pass');
+      await this.start('main', userNew ? 'new post from the user' : reportNew ? `${report!.from} reported` : 'next pass');
     }
 
     // workers: only with an open task; up to `parallel` at once (Settings), oldest task first across workers.

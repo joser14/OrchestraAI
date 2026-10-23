@@ -1,8 +1,8 @@
 // Learned memory: durable facts the team picks up from conversations, kept in memory/learned.md (plain Markdown,
 // edited on the Memory page). Design taken from the leading open-source memory systems:
-//   - mem0: extract facts from jr's and the team's messages (ignore small talk), then decide per fact against what is
+//   - mem0: extract facts from the user's and the team's messages (ignore small talk), then decide per fact against what is
 //     stored: ADD, UPDATE (same topic, better wording), DELETE (contradicted), NONE (already known)
-//   - Agent Zero: separate kinds - preference (how jr likes things), fact (about jr / the setup), solution (what worked,
+//   - Agent Zero: separate kinds - preference (how the user likes things), fact (about the user / the setup), solution (what worked,
 //     or what failed and the fix, for a kind of task)
 //   - CrewAI: recall ranked by 0.5 x relevance + 0.3 x recency (30-day half-life) + 0.2 x importance
 //   - pipeline-managed, run while the team is idle: small local models handle one narrow call far better than
@@ -72,15 +72,15 @@ export function recall(items: Learned[], query: string, kinds: LearnKind[], limi
     .sort((a, b) => b.s - a.s).slice(0, limit).map((x) => x.i);
 }
 
-export const LEARN_SYSTEM = `You keep the long-term memory of an AI team that works for jr. You get a recent conversation between jr and the
+export const LEARN_SYSTEM = `You keep the long-term memory of an AI team that works for the user. You get a recent conversation between the user and the
 team, and the memory as it is (numbered). Decide what to change so the team does better next time.
 Remember only what stays true beyond this one job:
-- preference: how jr likes things done (formats, length, style, tools, naming, what jr dislikes)
-- fact: lasting facts about jr, jr's projects or this PC's setup
+- preference: how the user likes things done (formats, length, style, tools, naming, what the user dislikes)
+- fact: lasting facts about the user, the user's projects or this PC's setup
 - solution: for a KIND of task, what worked, or what failed and the fix (e.g. "On this PC the shell is PowerShell: delete with Remove-Item 'dir\\*.tmp'")
 Ignore greetings, thanks, one-off task contents, and anything already in memory.
 For each fact: ADD (new), UPDATE id (same topic, better or newer wording), DELETE id (the conversation shows it is wrong),
-or nothing. Write each memory as one short, plain sentence. importance: 0.9 for explicit instructions from jr, 0.6 for
+or nothing. Write each memory as one short, plain sentence. importance: 0.9 for explicit instructions from the user, 0.6 for
 clear patterns, 0.3 for weak hints. Return {"changes": []} when nothing is worth keeping.`;
 
 export const LEARN_SCHEMA = {
