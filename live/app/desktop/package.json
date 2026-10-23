@@ -1,7 +1,7 @@
 {
   "name": "orchestra-desktop",
   "productName": "Orchestra",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Orchestra: a local AI team (brain + workers) on OpenClaw and Ollama",
   "main": "main.cjs",
   "private": true,
