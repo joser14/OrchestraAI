@@ -1,0 +1,39 @@
+# Build the Mac app without publishing anything, to find and check Mac build problems. Runs on a push to the
+# ci/mac-check branch (or by hand). Errors are posted as annotations, which the public API shows without a login.
+name: Mac build check
+
+on:
+  push:
+    branches: ['ci/mac-check']
+  workflow_dispatch:
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Service dependencies
+        working-directory: live/app
+        run: npm ci
+      - name: Build the team plugin
+        working-directory: live/app/plugin
+        run: |
+          npm ci
+          npm run build
+      - name: Desktop dependencies
+        working-directory: live/app/desktop
+        run: npm ci
+      - name: Build the Mac app (not published)
+        working-directory: live/app/desktop
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          set -o pipefail
+          npx electron-builder --mac dmg --config electron-builder.yml --publish never 2>&1 | tee build.log || {
+            grep -iE "⨯|error|cannot|failed|not found|ENOENT|exited" build.log | tail -25 | while IFS= read -r l; do echo "::error::${l//%/%25}"; done
+            exit 1; }
+          ls -la dist
