@@ -39,7 +39,7 @@ cd desktop && npx electron-builder --win nsis --config electron-builder.yml   # 
 cd plugin && npm run plugin:validate      # plugin manifest + types
 ```
 
-Data folder: `ORCHESTRA_ROOT`, else `C:\Agent` when it exists, else `~/Orchestra`. `E:\Orchestra\Orchestra.cmd` sets it to `live\data`;
+Data folder: `ORCHESTRA_ROOT`, else `~/Orchestra`. The launcher `Orchestra.cmd` (repository root) sets it to `live\data`;
 `Orchestra.cmd build` rebuilds the installer into `installer\`.
 
 ## Guardrails for small models (enforced in code, not prompts)
