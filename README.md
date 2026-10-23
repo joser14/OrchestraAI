@@ -7,8 +7,8 @@
 
 Your own AI team, running privately on your computer. You ask for something; a **composer** plans it, **workers**
 do the jobs, and the results land in your work folder as files and PDFs. Everything runs locally on
-[Ollama](https://ollama.com) models picked to fit your PC, with [OpenClaw](https://docs.openclaw.ai) agents. Nothing
-leaves your machine.
+[Ollama](https://ollama.com) models picked to fit your PC, with [OpenClaw](https://docs.openclaw.ai) agents. Your
+prompts and your work never leave your machine (the only downloads are the models themselves, during setup).
 
 ## Download
 
