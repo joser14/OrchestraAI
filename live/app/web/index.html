@@ -1756,7 +1756,7 @@ async function wlCheck() {
   const r = await fetch('/api/setup/ready').then((x) => x.json()).catch(() => null);
   const items = ((r && r.prereqs) || []).filter((p) => p.group !== 'tools');
   const teamOk = r && !(r.missing || []).some((m) => /^(agent|job|plugin|provider)/.test(m));
-  const rows = [...items.map((p) => [p.ok, p.name, p.ok ? '' : p.detail]), ['AI team', !!teamOk, teamOk ? '' : 'needs setting up']].map(([ok, name, why]) => { const d = el('div'); d.append(el('span', ok ? 'ok' : 'no', ok ? '✓' : '○'), document.createTextNode(` ${name}${why ? ' - ' + why : ''}`)); return d; });
+  const rows = [...items.map((p) => [p.ok, p.name, p.ok ? '' : p.detail]), [!!teamOk, 'AI team (agents and their jobs)', teamOk ? '' : 'needs setting up']].map(([ok, name, why]) => { const d = el('div'); d.append(el('span', ok ? 'ok' : 'no', ok ? '✓' : '○'), document.createTextNode(` ${name}${why ? ' - ' + why : ''}`)); return d; });
   $('wlCheck').replaceChildren(...(rows.length ? rows : [el('div', 'sub', 'Could not check this computer.')]));
   const missing = items.some((p) => !p.ok) || !teamOk; $('wlFix').hidden = !missing;
   $('wlNext1').textContent = missing ? 'Continue anyway' : 'Next';
