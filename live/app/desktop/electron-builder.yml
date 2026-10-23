@@ -37,6 +37,8 @@ publish:
   owner: joser14
   repo: OrchestraAI
   releaseType: release   # the updater ignores drafts
+releaseInfo:
+  releaseNotesFile: assets/release-notes.md   # the GitHub release's description (and the update's notes)
 win:
   target: [nsis]
   icon: assets/icon.ico
