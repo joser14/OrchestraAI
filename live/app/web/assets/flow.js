@@ -194,7 +194,7 @@
     const host = $('flow'), s = $('flowWires'); const hr = host.getBoundingClientRect(); if (!hr.width) return;
     // Rebuild only when something visible changed, so the scene's animations do not restart on every snapshot.
     const cardKey = [...host.querySelectorAll('.fnode')].map((n) => { const r = n.getBoundingClientRect(); return Math.round(r.top) + ':' + Math.round(r.height); }).join(',');
-    const key = [Math.round(hr.width), Math.round(hr.height), cardKey, JSON.stringify(active), tierOn.join(), WORKERS.join(), document.documentElement.dataset.theme || '', (snap && snap.workersOn || []).join(), files.length, tokens ? [tokens.today.input, tokens.today.output, tokens.hour.input, tokens.hour.output, tokens.today.tools].map(kfmt).join() : ''].join('|');
+    const key = [Math.round(hr.width), Math.round(hr.height), cardKey, JSON.stringify(active), tierOn.join(), WORKERS.join(), document.documentElement.dataset.theme || '', document.documentElement.dataset.look || '', (snap && snap.workersOn || []).join(), files.length, tokens ? [tokens.today.input, tokens.today.output, tokens.hour.input, tokens.hour.output, tokens.today.tools].map(kfmt).join() : ''].join('|');
     if (key === drawWires.key) return; drawWires.key = key;
     const NS = 'http://www.w3.org/2000/svg'; const mk = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.append(e); return e; };
     const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -280,16 +280,49 @@
     }
     const BRAIN_MAIN = { mid: M, hot: '#ff9a5c', alt: '#ff4f8b' };
 
+    // ---- 8-bit look: pixel sprites drawn into the same boxes as the smooth figures (wires and labels line up) ----
+    const PIX = document.documentElement.dataset.look === '8bit';
+    /** Draw a sprite from rows of characters, one rect per run of the same character. pal: char -> { fill, anim }
+     *  where anim is 'blink' | 'spark' | 'flicker' (only animated while `live`, except blink). */
+    function sprite(parent, rows, x0, y0, px, pal, live, seed = 1) {
+      const g = mk('g', { 'shape-rendering': 'crispEdges' }, parent);
+      rows.forEach((row, ry) => {
+        for (let cx0 = 0; cx0 < row.length;) {
+          const ch = row[cx0]; let n = 1; while (row[cx0 + n] === ch) n++;
+          const p = pal[ch];
+          if (p) {
+            const r = mk('rect', { x: (x0 + cx0 * px).toFixed(2), y: (y0 + ry * px).toFixed(2), width: (n * px + .3).toFixed(2), height: (px + .3).toFixed(2), fill: p.fill, opacity: p.opacity ?? 1 }, g);
+            if (p.anim === 'blink') anim(r, 'opacity', '1;1;1;0;1', `${(3.5 + rnd(seed) * 2).toFixed(1)}s`);
+            else if (p.anim && live) anim(r, 'opacity', p.anim === 'spark' ? '.15;1;.15' : '1;.3;1;.6;1', `${(.5 + rnd(seed + ry * 7 + cx0) * .9).toFixed(2)}s`, `${(rnd(seed + cx0 * 3 + ry) * .8).toFixed(2)}s`);
+            else if (p.anim === 'spark') r.setAttribute('opacity', .35);
+          }
+          cx0 += n;
+        }
+      });
+      return g;
+    }
+    const SPR_YOU = ['....oooooo....', '..oohhhhhhoo..', '.ohhhhhhhhhho.', '.ohhffffffhho.', 'ohhffffffffhho', 'ohffeeffeeffho', 'ohffeeffeeffho', 'ohffffffffffho',
+      'ohfffffmmfffho', 'ohhffffffffhho', '.ohhffffffhho.', '.ohhhhhhhhhho.', '..oohhhhhhoo..', '...oohhhhoo...', '....oooooo....'];
+    const SPR_BRAIN = ['.....oooooooooo.....', '...oobbbbbbbbbboo...', '..obbllbbbobbllbbo..', '.obbbblbbbobblbbbbo.', 'obbllbbbsbobbbsbllbo', 'obbbbllbbbobbllbbbbo',
+      'oblbbbbsbbobbbbbblbo', 'obbbllbbbbobbbllbbbo', '.obbbbbllbobllbbbbo.', '..obbsbbbbobbbbsbbo.', '...oobbbbbobbbbboo..', '.....ooooooooooo....', '........oooo........'];
+    const SPR_PC = ['oooooooooooooooo', 'okkkkkkkkkkkkkko', 'okkeekkkkkkeekko', 'okkeekkkkkkeekko', 'okkkkkkkkkkkkkko', 'okkkgggggggkkkko', 'okkkkkkkkkkkkkko',
+      'oooooooooooooooo', '......oooo......', '....oooooooo....'];
+    const SPR_PYR = ['......oooooo......', '......oddldo......', '......oooooo......', '....oooooooooo....', '....oddddddldo....', '....oooooooooo....',
+      '..oooooooooooooo..', '..oddddddddlddlo..', '..oooooooooooooo..'];
+
     // ---- tier 0: you - a floating hooded face (70 x 92 box) ----
     const k0 = Math.min(hgt(0) * .9 / 92, SW * .3 / 70), ox = cx - 35 * k0, oy = mid(0) - 46 * k0;
     const O = (x, y) => [ox + x * k0, oy + y * k0];
     const op = mk('g', { class: 'sc-you' + (tierOn[0] ? ' on' : ''), transform: `translate(${ox},${oy}) scale(${k0})` }, scene);
     mk('ellipse', { cx: 35, cy: 84, rx: 20, ry: 3, fill: YOU, opacity: .18, filter: 'url(#fglow)' }, op);
-    const face = mk('g', {}, op); turn(face, 'translate', '0 0;0 -3;0 0', '4.5s');
-    mk('path', { d: 'M35,4 C13,4 5,26 8,50 C10,64 20,74 35,76 C50,74 60,64 62,50 C65,26 57,4 35,4 Z', fill: MET2, stroke: YOU, 'stroke-width': 1.3, class: 'sc-glow' }, face);
-    mk('path', { d: 'M35,13 C21,13 17,29 19,44 C21,58 49,58 51,44 C53,29 49,13 35,13 Z', fill: BG }, face);
-    mk('path', { d: 'M22,20 C26,15 31,13 35,13', fill: 'none', stroke: YOU, 'stroke-width': .7, opacity: .5 }, face);
-    for (const x of [25.5, 38.5]) { const e = mk('rect', { x, y: 34, width: 6, height: 2.6, rx: 1.2, fill: YOU, filter: 'url(#fglow)' }, face); anim(e, 'opacity', '1;1;.1;1', '4s', `${x / 100}s`); }
+    const face = mk('g', {}, op); turn(face, 'translate', PIX ? '0 0;0 -5;0 0' : '0 0;0 -3;0 0', PIX ? '2s' : '4.5s');
+    if (PIX) sprite(face, SPR_YOU, 0, 2, 5, { o: { fill: YOU }, h: { fill: MET2 }, f: { fill: BG }, e: { fill: YOU, anim: 'blink' }, m: { fill: YOU, opacity: .5 } }, !!tierOn[0], 3);
+    else {
+      mk('path', { d: 'M35,4 C13,4 5,26 8,50 C10,64 20,74 35,76 C50,74 60,64 62,50 C65,26 57,4 35,4 Z', fill: MET2, stroke: YOU, 'stroke-width': 1.3, class: 'sc-glow' }, face);
+      mk('path', { d: 'M35,13 C21,13 17,29 19,44 C21,58 49,58 51,44 C53,29 49,13 35,13 Z', fill: BG }, face);
+      mk('path', { d: 'M22,20 C26,15 31,13 35,13', fill: 'none', stroke: YOU, 'stroke-width': .7, opacity: .5 }, face);
+      for (const x of [25.5, 38.5]) { const e = mk('rect', { x, y: 34, width: 6, height: 2.6, rx: 1.2, fill: YOU, filter: 'url(#fglow)' }, face); anim(e, 'opacity', '1;1;.1;1', '4s', `${x / 100}s`); }
+    }
     txt(op, 35, 92, 'you', { fill: YOU, 'font-size': 8, 'text-anchor': 'middle', 'font-weight': 700, 'letter-spacing': 2 });
     // input side, beside you: tokens the team read today and in the last hour
     if (tokens) {
@@ -305,7 +338,8 @@
     const cond = mk('g', { class: 'sc-cond' + (tierOn[1] ? ' on' : '') }, scene);
     mk('ellipse', { cx: cx, cy: by + 120 * k1, rx: 70 * k1, ry: 4 * k1, fill: M, opacity: .2, filter: 'url(#fglow)' }, cond);
     const cfloat = mk('g', {}, cond); turn(cfloat, 'translate', `0 0;0 ${-3 * k1};0 0`, '6s');
-    brain(cfloat, 'bmain', bx, by, k1, BRAIN_MAIN, !!tierOn[1], 2.6, 7);
+    if (PIX) sprite(cfloat, SPR_BRAIN, bx, by, 10 * k1, { o: { fill: M }, b: { fill: MET2 }, l: { fill: M, opacity: .55 }, s: { fill: '#ff9a5c', anim: 'spark' } }, !!tierOn[1], 7);
+    else brain(cfloat, 'bmain', bx, by, k1, BRAIN_MAIN, !!tierOn[1], 2.6, 7);
     txt(cond, cx, by + 132 * k1, 'composer', { fill: M, 'font-size': 9, 'font-weight': 700, 'text-anchor': 'middle', 'letter-spacing': 3 });
     if (tierOn[1]) for (let j = 0; j < 4; j++) { const b = txt(cond, cx + (j - 1.5) * 30 * k1, by + 6 * k1, ['01', '1F', '<>', '10'][j], { fill: M, 'font-size': 8, opacity: 0, 'text-anchor': 'middle' }); anim(b, 'y', `${by + 8 * k1};${by - 14 * k1}`, '2s', `${j * .5}s`); anim(b, 'opacity', '0;1;0', '2s', `${j * .5}s`); }
     const baton = C(110, 112), condHead = C(112, 10), condHand = C(24, 82), condSide = C(18, 70);
@@ -323,7 +357,8 @@
       const g = mk('g', { class: 'sc-agent' + (live ? ' on' : '') + (off ? ' off' : '') }, scene);
       mk('ellipse', { cx: X + 100 * k2, cy: Y + 120 * k2, rx: 60 * k2, ry: 3.5 * k2, fill: c, opacity: .18, filter: 'url(#fglow)' }, g);
       const fl = mk('g', {}, g); turn(fl, 'translate', `0 0;0 ${-3 * k2};0 0`, `${(4 + i * .7).toFixed(1)}s`);
-      brain(fl, 'b' + w, X, Y, k2, { mid: c, hot: '#ffd0b8', alt: M }, live, 3.6, 31 + i * 17);
+      if (PIX) sprite(fl, SPR_PC, X + 20 * k2, Y + 8 * k2, 10 * k2, { o: { fill: c }, k: { fill: BG }, e: { fill: c, anim: 'blink' }, g: { fill: c, anim: 'flicker', opacity: live ? 1 : .4 } }, live, 31 + i * 17);
+      else brain(fl, 'b' + w, X, Y, k2, { mid: c, hot: '#ffd0b8', alt: M }, live, 3.6, 31 + i * 17);
       if (live) for (let j = 0; j < 3; j++) {
         const bit = txt(g, X + (150 + j * 12) * k2, Y + 20 * k2, ['1', '0', '{}'][j], { fill: c, 'font-size': 8, opacity: 0, class: 'sc-bit' });
         anim(bit, 'y', `${Y + 20 * k2};${Y - 10 * k2}`, '1.9s', `${j * .6}s`); anim(bit, 'opacity', '0;1;0', '1.9s', `${j * .6}s`);
@@ -337,7 +372,8 @@
     const db = mk('g', { class: 'sc-db' + (tierOn[3] ? ' on' : '') }, scene);
     mk('ellipse', { cx, cy: dy + 62 * dk, rx: 50 * dk, ry: 3.5 * dk, fill: OUT, opacity: .18, filter: 'url(#fglow)' }, db);
     const discs = [[90, 40], [64, 22], [38, 4]];   // [width, top y] bottom to top, in 64-unit box
-    discs.forEach(([w0, t0], d) => {
+    if (PIX) sprite(db, SPR_PYR, cx - 45 * dk, dy + 10 * dk, 5 * dk, { o: { fill: OUT }, d: { fill: MET2 }, l: { fill: M, anim: 'spark' } }, !!tierOn[3], 11);
+    else discs.forEach(([w0, t0], d) => {
       const w = w0 * dk, x = cx - w / 2, top = dy + (t0 + 6) * dk, h = 14 * dk, ery = Math.max(2.5, w0 * .09) * dk;
       mk('path', { d: `M${x},${top} v${h} a${w / 2},${ery} 0 0 0 ${w},0 v${-h}`, fill: MET2, stroke: OUT, 'stroke-width': 1.1, class: d === 2 ? 'sc-glow' : '' }, db);
       mk('ellipse', { cx, cy: top, rx: w / 2, ry: ery, fill: d === 2 ? MET : MET2, stroke: OUT, 'stroke-width': 1.1 }, db);
