@@ -54,9 +54,15 @@ jobs:
         working-directory: live/app/desktop
         run: npm ci
 
+      # On failure the error lines become annotations, which the public API shows (job logs need a login)
       - name: Build and publish the installer
         working-directory: live/app/desktop
-        run: npx electron-builder ${{ matrix.target }} --config electron-builder.yml --publish always
+        shell: bash
+        run: |
+          set -o pipefail
+          npx electron-builder ${{ matrix.target }} --config electron-builder.yml --publish always 2>&1 | tee build.log || {
+            grep -iE "⨯|error|cannot|failed|not found|ENOENT" build.log | tail -25 | while IFS= read -r l; do echo "::error::${l//%/%25}"; done
+            exit 1; }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # optional code signing (Windows .pfx as base64 + password); unsigned when empty
