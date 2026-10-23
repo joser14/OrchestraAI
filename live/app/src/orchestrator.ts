@@ -15,6 +15,7 @@ import { lastAssistantText } from './transcripts.ts';
 import { KeepAwake } from './health.ts';
 import { getSettings } from './settings.ts';
 import { agentCost } from './usage.ts';
+import { readLearned, writeLearned, applyChanges, askModel, learnPrompt } from './learn.ts';
 import { verifyFiles, needsInterpret, conversationBefore, folderSnapshot, buildPrompt, parseInterpretation, callModel, type Interpretation } from './interpret.ts';
 const run = promisify(execFile);
 
@@ -147,6 +148,7 @@ export class Orchestrator {
     // ---- 8. outputs ----
     const busy = this.cfg.agents.some((a) => this.running(a)) || tasks.some((t) => t.status === 'open');
     this.awake.set(busy);
+    if (!busy && !this.dryRun) this.learnWhenIdle(posts).catch(() => {});   // learned memory (learn.ts), never during work
     if (!this.dryRun) await this.freeVramWhenIdle(busy);
     const late = this.compat.exportAll(this.store.tasks());
     if (late) { this.log(`board: imported ${late} post(s) that arrived during the pass`); setTimeout(() => this.pass(), 1000); }
@@ -286,6 +288,30 @@ export class Orchestrator {
 
   private async gpuTemp(): Promise<number> {
     try { const { stdout } = await run('nvidia-smi', ['--query-gpu=temperature.gpu', '--format=csv,noheader,nounits'], { windowsHide: true }); return parseInt(stdout) || 0; } catch { return 0; }
+  }
+
+  /** Learned memory: once jr's latest request has been answered and the team is idle (at most every 5 min), one model
+   *  call turns the recent conversation into ADD / UPDATE / DELETE changes to memory/learned.md (Settings: Learn). */
+  private learning = false;
+  private async learnWhenIdle(posts: Post[]) {
+    if (this.learning || getSettings(this.store).learn === false) return;
+    if (Date.now() - this.store.get<number>('learnAt', 0) < 5 * 60000) return;
+    const lastJr = [...posts].reverse().find((p) => p.from === 'jr'); if (!lastJr) return;
+    if (lastJr.id <= this.store.get<number>('learnedUpTo', 0)) return;
+    if (!posts.some((p) => p.id > lastJr.id && /^main(-relay|-chat)?$/.test(p.from) && p.to === 'jr')) return;   // not answered yet
+    const model = String(this.jobs.main?.payload?.model || ''); if (!model.startsWith('ollama/')) return;
+    this.learning = true; this.store.set('learnAt', Date.now());
+    try {
+      const since = this.store.get<number>('learnedUpTo', 0);
+      const convo = posts.filter((p) => p.id > since && !p.cmd && (p.from === 'jr' || (/^main/.test(p.from) && p.to === 'jr') || (this.cfg.workers.includes(p.from) && /^\s*DONE\s+T\d+/i.test(p.body)) || (p.from === 'system' && /not done yet|failed \d+ times/i.test(p.body)))).slice(-20);
+      if (!convo.length) { this.store.set('learnedUpTo', lastJr.id); return; }
+      const items = readLearned(this.cfg);
+      const changes = await askModel(model.replace(/^ollama\//, ''), learnPrompt(convo, items));
+      const r = applyChanges(items, changes, new Date().toISOString().slice(0, 10));
+      if (r.added || r.updated || r.deleted) { writeLearned(this.cfg, r.items); this.log(`learned: ${r.added} new, ${r.updated} updated, ${r.deleted} removed (memory/learned.md, ${r.items.length} entries)`); }
+      this.store.set('learnedUpTo', lastJr.id);
+    } catch (e: any) { this.log(`learned: skipped (${String(e?.message || e).slice(0, 120)})`); }
+    finally { this.learning = false; }
   }
 
   /** Interpret jr's newest post once (Settings: "Interpret requests"); any failure just leaves the agenda as it was. */

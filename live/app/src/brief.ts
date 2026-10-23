@@ -15,6 +15,7 @@ import { getSettings } from './settings.ts';
 import { agendaHint, folderSnapshot, verifyFiles, type Interpretation } from './interpret.ts';
 import { teamMemory } from './memory.ts';
 import { skillsForBrief } from './teamskills.ts';
+import { learnedForBrief } from './learn.ts';
 
 export interface Watermark { post: number; at: string }
 const NONE: Watermark = { post: 0, at: '1970-01-01T00:00:00.000Z' };
@@ -122,6 +123,8 @@ function mainAgenda(o: Orchestrator): string {
   L.push(`Up to ${S.parallel} worker(s) run at once. Models you can give a job: ${Object.keys(o.cfg.aliases).sort().join(', ')}`);
   const tm = teamMemory(o.cfg);   // jr's standing notes (Memory page): always in front of the brain
   if (tm) L.push('', "=== TEAM MEMORY (jr's standing notes - follow them) ===", tm);
+  const lm = learnedForBrief(o.cfg);   // learned memory: jr's preferences and facts, ranked (learn.ts)
+  if (lm) L.push('', lm);
   const sk = skillsForBrief(o.cfg);   // team playbooks: name + description only; mention the skill in a job that needs it
   if (sk) L.push('', sk, 'When you assign a job that matches a skill, name the skill in the job ("follow the <name> skill").');
 
@@ -220,6 +223,8 @@ function workerBrief(o: Orchestrator, who: string): string {
   L.push('', '=== MESSAGES FOR YOU ===', ...(msgs.length ? msgs.map((p) => `--- ${p.from} at ${p.ts}\n${one(p.body, 800)}`) : ['none']));
   const tm = teamMemory(o.cfg);
   if (tm) L.push('', "=== TEAM MEMORY (jr's standing notes - follow them) ===", tm);
+  const lm = learnedForBrief(o.cfg, mine[0]?.text || '');   // preferences + the past solutions closest to this task
+  if (lm) L.push('', lm);
   const sk = skillsForBrief(o.cfg);   // read a skill's file only when the task matches it (progressive disclosure)
   if (sk) L.push('', sk);
   L.push('', '=== HOW TO WORK ===',

@@ -440,7 +440,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
   const postRoutes: Record<string, (b: any) => Promise<any> | any> = {
     '/api/settings': async (b) => {
       const patch: any = {};
-      for (const k of ['autonomy', 'workers', 'workerCount', 'parallel', 'ctx', 'notify', 'modelKinds', 'thinking', 'lightContext', 'runMinutes', 'interpret']) if (b[k] !== undefined) patch[k] = b[k];
+      for (const k of ['autonomy', 'workers', 'workerCount', 'parallel', 'ctx', 'notify', 'modelKinds', 'thinking', 'lightContext', 'runMinutes', 'interpret', 'learn']) if (b[k] !== undefined) patch[k] = b[k];
       const before = cfg.workers.length;
       const s = await saveSettings(o.store, o.gw, patch, (m) => o.log(m));
       let note = '';

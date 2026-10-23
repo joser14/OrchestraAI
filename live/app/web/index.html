@@ -1084,6 +1084,8 @@
       <h2>OpenClaw <span class="sub">how each agent runs; saved straight into its OpenClaw job</span></h2>
       <div class="set-row"><div class="lbl"><b>Interpret requests</b><div class="sub">before main plans, one quick extra step rewrites your latest message as one clear instruction ("you missed one" &rarr; what exactly to fix). Adds about 5&ndash;15 s, only when there is a conversation to read.</div></div>
         <input type="checkbox" class="switch" id="setInterpret"></div>
+      <div class="set-row"><div class="lbl"><b>Learn from conversations</b><div class="sub">after the team answers you and is idle, keep lasting preferences, facts and what worked in memory/learned.md (Memory page); agents get the most relevant entries</div></div>
+        <input type="checkbox" class="switch" id="setLearn"></div>
       <div class="set-row"><div class="lbl"><b>Thinking</b><div class="sub">lets a model reason before it answers: better decisions, slower runs. Qwen3 models on Ollama only switch it on or off (low / medium / high act the same). They sometimes write a tool call inside their thinking instead of making it; Orchestra routes OpenClaw's model traffic through its own proxy, which turns those back into real calls (the Activity log says when it does) and measures the live speed for the Dashboard.</div></div></div>
       <table class="mtable" id="ocAgents"></table>
       <div class="set-row"><div class="lbl"><b>Light context</b><div class="sub">start runs with OpenClaw's lightweight bootstrap (fewer workspace files read in): faster first token, less background for the agent</div></div>
@@ -1974,7 +1976,12 @@ async function openMemory(id, f) {
   if (f && f.readonly) $('memFoot').textContent += ' · read only: Orchestra writes this file; put your rules in the team memory.md';
   memDirty(); document.querySelectorAll('.mem-file').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
 }
-function memDirty() { const d = $('memText').value !== memSavedText; $('memSave').disabled = !d; $('memState').textContent = d ? 'unsaved changes' : ''; }
+function memDirty() {
+  const d = $('memText').value !== memSavedText; $('memSave').disabled = !d;
+  // the team memory reaches the agents up to 2,500 characters (like a Letta memory block's limit): show how much fits
+  const n = $('memText').value.length, cap = memCur === 'team:memory.md' ? ` · ${n.toLocaleString()} / 2,500 characters reach the agents${n > 2500 ? ' (the rest is cut)' : ''}` : '';
+  $('memState').textContent = (d ? 'unsaved changes' : '') + cap;
+}
 $('memText').oninput = memDirty;
 $('memText').onkeydown = (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); $('memSave').click(); } };
 $('memSave').onclick = async () => {
@@ -2364,6 +2371,7 @@ const THINK = [['off', 'Off'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'H
 function renderOpenClaw() {
   const s = settings; if (!s) return;
   $('setInterpret').checked = s.interpret !== false;
+  $('setLearn').checked = s.learn !== false;
   $('setLight').checked = !!s.lightContext;
   document.querySelectorAll('#setRun button').forEach((b) => b.classList.toggle('on', +b.dataset.v === (s.runMinutes || 8)));
   const oc = s.openclaw || {};

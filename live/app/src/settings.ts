@@ -22,11 +22,12 @@ export const THINKING: Thinking[] = ['off', 'low', 'medium', 'high'];
 export interface Settings {
   autonomy: Autonomy; workers: string[]; workerCount: number; parallel: number; ctx: number; notify: boolean; modelKinds: ('abliterated' | 'standard' | 'custom')[];
   thinking: Record<string, Thinking>; lightContext: boolean; runMinutes: number; interpret: boolean;
+  learn: boolean;   // learned memory (learn.ts): pick up durable facts from conversations while idle
 }
 export const DEFAULTS: Settings = { autonomy: 'ask', workers: ['worker', 'worker2'], workerCount: 2, parallel: 1, ctx: 24576, notify: true, modelKinds: ['abliterated'],
   // main thinks: Qwen3 on Ollama sometimes writes its tool call inside the thinking text; the tool-call rescue proxy
   // (ollamaproxy.ts) turns those into real calls, so thinking runs no longer end with nothing done.
-  thinking: { main: 'low', worker: 'off' }, lightContext: false, runMinutes: 8, interpret: true };
+  thinking: { main: 'low', worker: 'off' }, lightContext: false, runMinutes: 8, interpret: true, learn: true };
 export const RUN_MINUTES = [4, 8, 12, 20];
 export const thinkingFor = (s: Settings, agent: string): Thinking => s.thinking[agent] ?? (agent === 'main' ? s.thinking.main : s.thinking.worker) ?? 'off';
 const POLICY: Record<Autonomy, { security: string; ask: string; askFallback: string }> = {
@@ -59,7 +60,7 @@ export async function saveSettings(store: Store, gw: Gateway, patch: Partial<Set
   s.thinking = { ...getSettings(store).thinking, ...(patch.thinking || {}) };
   for (const [a, v] of Object.entries(s.thinking)) if (!THINKING.includes(v)) throw new Error(`thinking for ${a} must be one of ${THINKING.join(', ')}`);
   s.runMinutes = RUN_MINUTES.includes(Number(s.runMinutes)) ? Number(s.runMinutes) : 8;
-  s.lightContext = !!s.lightContext; s.interpret = !!s.interpret;
+  s.lightContext = !!s.lightContext; s.interpret = !!s.interpret; s.learn = s.learn !== false;
   if (patch.autonomy) {
     const cur: any = await gw.rpc('exec.approvals.get', {});
     const file = { ...cur.file, defaults: { ...(cur.file?.defaults || {}), ...POLICY[s.autonomy] } };

@@ -32,8 +32,9 @@ const info = (p: string) => { try { const s = statSync(p); return { size: s.size
 const mds = (dir: string) => { try { return readdirSync(dir).filter((f) => MD.test(f)); } catch { return []; } };
 
 export function listMemory(cfg: Config): MemFile[] {
-  const out: MemFile[] = [{ id: 'team:memory.md', group: 'Team', label: 'memory.md', about: TEAM_ABOUT, ...info(teamFile(cfg)) }];
-  for (const f of mds(join(cfg.root, 'memory')).filter((f) => f !== 'memory.md').sort())
+  const out: MemFile[] = [{ id: 'team:memory.md', group: 'Team', label: 'memory.md', about: TEAM_ABOUT, ...info(teamFile(cfg)) },
+    { id: 'shared:learned.md', group: 'Team', label: 'learned.md', about: 'What the team picked up from your conversations (automatic; edit or delete any line). Format: - [kind|importance|date] text', ...info(join(cfg.root, 'memory', 'learned.md')) }];
+  for (const f of mds(join(cfg.root, 'memory')).filter((f) => f !== 'memory.md' && f !== 'learned.md').sort())
     out.push({ id: `shared:${f}`, group: 'Shared notes', label: f, about: 'a shared note in the memory folder', ...info(join(cfg.root, 'memory', f)) });
   for (const a of cfg.agents) {
     const ws = join(cfg.root, 'agents', a); if (!existsSync(ws)) continue;
