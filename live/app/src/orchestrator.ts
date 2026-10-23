@@ -333,7 +333,8 @@ export class Orchestrator {
   private reportFast(t: Task, posts: Post[]) {
     // only this task's posts: ids restart after an archive, so an older "DONE T3" can still be on the board
     const since = minuteOf(t.created), mine = [...posts].reverse().filter((p) => p.from === t.assignee && p.ts >= since && new RegExp(`\\b${t.id}\\b`).test(p.body));
-    const done = mine.find((p) => !/^\s*DONE\s+T\d+\s*:?\s*(Created|Wrote|Saved)?\s*\S+\.\w+\s*$/i.test(p.body) && !/^\s*Starting\b/i.test(p.body)) || mine[0];
+    // the worker's own words, unless they only repeat the file name (the Files line says that)
+    const done = mine.find((p) => !/^\s*(DONE\s+T\d+\s*:?\s*)?(Created|Wrote|Saved)?\s*\S+\.\w+\s*$/i.test(p.body) && !/^\s*Starting\b/i.test(p.body));
     const note = done ? done.body.replace(/^\s*DONE\s+T\d+\s*:?\s*/i, '').trim() : '';
     const files = expectedFiles(t.text, this.cfg.workDir).filter((f) => this.stat(f).exists);
     const cost = this.store.get<Record<string, any>>('taskCosts', {})[`${t.id}|${t.created}`];
