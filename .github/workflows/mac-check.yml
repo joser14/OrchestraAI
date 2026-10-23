@@ -9,6 +9,12 @@ on:
 
 jobs:
   mac:
+    strategy:
+      fail-fast: false
+      matrix:
+        # "release-env": the release workflow's signing variables, set but empty (no certificate)
+        # "release-env-fixed": the same, removed before the build when empty
+        case: [release-env, release-env-fixed]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
@@ -31,8 +37,11 @@ jobs:
         shell: bash
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: |
           set -o pipefail
+          if [ "${{ matrix.case }}" = "release-env-fixed" ] && [ -z "$CSC_LINK" ]; then unset CSC_LINK CSC_KEY_PASSWORD; fi
           npx electron-builder --mac dmg --config electron-builder.yml --publish never 2>&1 | tee build.log || {
             grep -iE "⨯|error|cannot|failed|not found|ENOENT|exited" build.log | tail -25 | while IFS= read -r l; do echo "::error::${l//%/%25}"; done
             exit 1; }
