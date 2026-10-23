@@ -2899,7 +2899,8 @@ async function loadReady() {
     if (!ok) {
       const b = el('button', 'small', f.running ? 'Working…' : verb || 'Fix'); b.type = 'button'; b.disabled = busy;
       b.onclick = async () => { b.disabled = true; b.textContent = 'Working…'; try { const x = await postJSON('/api/setup/fix', { id }); toast(x.msg, !!x.needMain); } catch (err) { toast(err.message, true); } setTimeout(loadReady, 1500); };
-      d.append(b);
+      // under the text, not beside it: beside it the text column shrank to one word per line (seen on a clean PC)
+      const acts = el('div', 'rq-acts'); acts.append(b); t.append(acts);
     }
     box.append(d);
   };

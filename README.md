@@ -11,7 +11,7 @@ leaves your machine.
 
 | Your computer | File |
 |---|---|
-| Windows 10 / 11 | `Orchestra Setup x.y.z.exe` |
+| Windows 10 / 11 | `Orchestra-Setup-x.y.z.exe` |
 | Mac with Apple silicon (M1 and later) | `Orchestra-x.y.z-arm64.dmg` |
 | Mac with an Intel chip | `Orchestra-x.y.z.dmg` |
 | Linux | `Orchestra-x.y.z.AppImage` |
