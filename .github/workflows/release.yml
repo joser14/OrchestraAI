@@ -1,0 +1,65 @@
+# Ready-made installers, so nobody has to build Orchestra themselves.
+# Push a version tag (git tag v0.3.0 && git push origin v0.3.0) or run it by hand from the Actions tab:
+# each OS builds its installer and electron-builder publishes them to the GitHub release for that version,
+# with latest*.yml for the in-app updater. Unsigned unless signing secrets are set (Windows SmartScreen and
+# macOS Gatekeeper then warn on first run; see README "Installing").
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # create the release and upload the installers
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win nsis
+          - os: macos-latest
+            target: --mac dmg
+          - os: ubuntu-latest
+            target: --linux AppImage   # .deb needs a maintainer e-mail in package.json
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # the service's runtime dependency (koffi) - bundled as an extra resource
+      - name: Service dependencies
+        working-directory: live/app
+        run: npm ci
+
+      - name: Tests
+        if: matrix.os == 'windows-latest'   # some tests use Windows paths
+        working-directory: live/app
+        run: npm test
+
+      # the team tools plugin: its compiled dist/ ships with the app
+      - name: Build the team plugin
+        working-directory: live/app/plugin
+        run: |
+          npm ci
+          npm run build
+
+      - name: Desktop dependencies
+        working-directory: live/app/desktop
+        run: npm ci
+
+      - name: Build and publish the installer
+        working-directory: live/app/desktop
+        run: npx electron-builder ${{ matrix.target }} --config electron-builder.yml --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # optional code signing (Windows .pfx as base64 + password); unsigned when empty
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.os == 'macos-latest' && 'false' || 'true' }}   # no Apple identity on the runner

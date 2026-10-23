@@ -179,8 +179,26 @@ async function refreshTray() {
     { label: paused ? 'Resume agents' : 'Pause agents', click: () => api('/api/control', { action: paused ? 'resume' : 'pause' }).then(refreshTray).catch(() => {}) },
     { label: 'Open work folder', click: () => shell.openPath(path.join(DATA, 'work')) },
     { type: 'separator' },
+    ...(updateReady ? [{ label: `Quit and install update ${updateReady}`, click: () => { quitting = true; app.quit(); } }] : []),
     { label: 'Quit Orchestra (stops OpenClaw and Ollama)', click: () => { quitting = true; app.quit(); } },
   ]));
+}
+
+// Updates (the installed app only): each version is a GitHub release built by .github/workflows/release.yml.
+// electron-updater fetches a newer one in the background and installs it when Orchestra quits (tray > Quit).
+let updateReady = '';
+function startUpdates() {
+  if (!app.isPackaged) return;   // the live copy (Orchestra.cmd) updates with git, not here
+  let au; try { ({ autoUpdater: au } = require('electron-updater')); } catch { return; }
+  au.autoDownload = true; au.autoInstallOnAppQuit = true;
+  au.on('update-downloaded', (i) => {
+    updateReady = i.version;
+    try { new Notification({ title: 'Orchestra update ready', body: `Version ${i.version} installs the next time you quit Orchestra.`, icon: iconImage() }).show(); } catch {}
+    refreshTray().catch(() => {});
+  });
+  au.on('error', () => {});   // offline or no release yet: try again later
+  const check = () => au.checkForUpdates().catch(() => {});
+  setTimeout(check, 60000); setInterval(check, 6 * 3600000);
 }
 
 app.whenReady().then(async () => {
@@ -195,6 +213,7 @@ app.whenReady().then(async () => {
   await refreshTray();
   setInterval(refreshTray, 15000);
   checkReplies(); setInterval(checkReplies, 5000);
+  startUpdates();
   if (!process.argv.includes('--hidden')) { if (win) loadDashboard(); else showWindow(); }
 });
 app.on('window-all-closed', (e) => { /* keep running in the tray */ });

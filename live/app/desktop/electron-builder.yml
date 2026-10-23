@@ -30,6 +30,13 @@ extraResources:
     to: orchestra/node_modules/@koromix
   - from: ../plugin/node_modules/typebox
     to: orchestra/plugin/node_modules/typebox
+# Releases: .github/workflows/release.yml builds every OS on a version tag (v0.3.0) and publishes the installers as
+# a GitHub release; the installed app's updater (main.cjs) reads latest.yml from there.
+publish:
+  provider: github
+  owner: joser14
+  repo: OrchestraAI
+  releaseType: release   # the updater ignores drafts
 win:
   target: [nsis]
   icon: assets/icon.ico
