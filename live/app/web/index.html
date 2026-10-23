@@ -238,14 +238,22 @@
   .mem-actions { display: flex; align-items: center; gap: 10px; flex: none; }
   .mem-text { width: 100%; min-height: calc(100vh - 290px); resize: vertical; padding: 12px; background: var(--bg); color: var(--text); border: 1px solid var(--border); font: 14px/1.5 ui-monospace, 'JetBrains Mono', monospace; }
   .mem-foot { margin-top: 6px; }
-  /* Skills page: filter bar + cards */
-  .sk-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; } .sk-bar .inp { flex: 1; min-width: 160px; max-width: 360px; }
-  .sk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
-  .sk-card { border: 1px solid var(--border); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; opacity: .72; } .sk-card.ready { opacity: 1; }
-  .sk-head { display: flex; align-items: center; gap: 8px; } .sk-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sk-e { width: 20px; text-align: center; } .sk-about { font-size: 13px; color: var(--muted); line-height: 1.4; }
-  .sk-st { font-size: 11px; padding: 2px 7px; border: 1px solid var(--border); white-space: nowrap; } .sk-st.ok { color: #4ade80; border-color: rgba(74, 222, 128, .4); } .sk-st.need { color: #f3c969; border-color: rgba(243, 201, 105, .4); } .sk-st.off { color: var(--muted); }
-  .sk-miss { font-size: 12px; word-break: break-word; }
+  /* Skills page: one-height filter bar + uniform cards (icon box, name + status, 3-line summary, footer) */
+  .sk-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; margin-bottom: 14px; }
+  .sk-bar > * { height: 36px; box-sizing: border-box; } .sk-bar .seg { display: inline-flex; } .sk-bar .seg button { height: 100%; }
+  .sk-bar .inp { flex: 1; min-width: 180px; max-width: 420px; padding: 0 12px; }
+  .sk-bar .sub { display: inline-flex; align-items: center; } .sk-bar #skRefresh { margin-left: auto; }
+  .sk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .sk-card { border: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 55%, transparent); padding: 12px; display: grid; grid-template-rows: auto 1fr auto; gap: 8px; min-height: 148px; }
+  .sk-card:not(.ready) { opacity: .7; }
+  .sk-head { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+  .sk-e { width: 32px; height: 32px; display: grid; place-items: center; font-size: 18px; border: 1px solid var(--border); background: var(--panel); }
+  .sk-name { font-weight: 600; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sk-about { font-size: 13px; color: var(--muted); line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+  .sk-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 18px; font-size: 12px; }
+  .sk-miss { color: #f3c969; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .sk-st { font-size: 11px; line-height: 1; padding: 5px 8px; border: 1px solid var(--border); white-space: nowrap; text-transform: uppercase; letter-spacing: .06em; }
+  .sk-st.ok { color: #4ade80; border-color: rgba(74, 222, 128, .45); } .sk-st.need { color: #f3c969; border-color: rgba(243, 201, 105, .45); } .sk-st.off { color: var(--muted); }
   @media (max-width: 760px) { .mem { grid-template-columns: 1fr; } .mem-files { max-height: 240px; } .mem-text { min-height: 50vh; } }
   /* Dashboard: live telemetry tiles - big monospace numbers, sparklines, a segmented memory bar (red theme) */
   .tele { max-width: 1400px; margin: 0 auto; }
@@ -1475,12 +1483,15 @@ const PAGES = {
   setup: ['Setup', 'Requirements, this PC, the model lineup that fits it, and first-run setup'],
   library: ['Model library', 'Every model Orchestra knows: install, test and pick which one does each job'],
   settings: ['Settings', 'Autonomy, workers, model types and approvals'],
+  memory: ['Memory', 'What the team remembers: your standing notes, and each agent\'s own memory'],
+  skills: ['Skills', 'Ready-made know-how the agents can load from OpenClaw'],
 };
 function showTab(name) {
   name = { team: 'flow' }[name] || name;   // old links
   if (!$('tab-' + name)) name = 'flow';
   if (name === 'chat') { loadChat(true); setTimeout(() => $('chatInput').focus(), 50); }
-  $('pageTitle').textContent = PAGES[name][0]; $('pageSub').textContent = PAGES[name][1];
+  const pg = PAGES[name] || [name.charAt(0).toUpperCase() + name.slice(1), ''];   // a page without a title entry still opens
+  $('pageTitle').textContent = pg[0]; $('pageSub').textContent = pg[1];
   if (name === 'tools') loadTools();
   if (name === 'memory') loadMemory();
   if (name === 'skills') loadSkillsPage();
@@ -1925,11 +1936,13 @@ async function loadSkillsPage(force) {
   const list = skAll.filter((s) => (skFilter === 'all' || (skFilter === 'ready' ? s.ready : !s.ready)) && (!q || (s.name + ' ' + s.about).toLowerCase().includes(q)));
   $('skCount').textContent = `${skAll.filter((s) => s.ready).length} ready of ${skAll.length}`;
   $('skGrid').replaceChildren(...(list.length ? list.map((s) => {
-    const card = el('div', 'sk-card' + (s.ready ? ' ready' : ''));
-    const head = el('div', 'sk-head'); head.append(el('span', 'sk-e', s.emoji || '•'), el('b', null, s.name), el('span', 'sk-st ' + (s.ready ? (s.disabled ? 'off' : 'ok') : 'need'), s.ready ? (s.disabled ? 'disabled' : 'ready') : 'needs setup'));
-    card.append(head, el('div', 'sk-about', s.about || ''));
-    if (!s.ready && s.missing) card.append(el('div', 'sub sk-miss', 'Missing: ' + s.missing));
-    if (s.homepage) { const a = el('a', 'more', 'docs →'); a.href = s.homepage; a.target = '_blank'; a.rel = 'noopener'; card.append(a); }
+    const card = el('div', 'sk-card' + (s.ready ? ' ready' : '')); card.title = s.about || '';
+    const head = el('div', 'sk-head');
+    head.append(el('span', 'sk-e', s.emoji || s.name.charAt(0).toUpperCase()), el('span', 'sk-name', s.name), el('span', 'sk-st ' + (s.ready ? (s.disabled ? 'off' : 'ok') : 'need'), s.ready ? (s.disabled ? 'off' : 'ready') : 'setup'));
+    const foot = el('div', 'sk-foot');
+    foot.append(!s.ready && s.missing ? el('span', 'sk-miss', 'needs ' + s.missing.replace(/^(bins|anyBins|env|config|os): /, '').replace(/ · (bins|anyBins|env|config|os): /g, ', ')) : el('span', 'sub', s.ready ? 'available to the agents' : ''));
+    if (s.homepage) { const a = el('a', 'more', 'docs →'); a.href = s.homepage; a.target = '_blank'; a.rel = 'noopener'; foot.append(a); }
+    card.append(head, el('div', 'sk-about', s.about || ''), foot);
     return card;
   }) : [el('div', 'sub', skFilter === 'ready' ? 'No ready skills match.' : 'No skills match.')]));
 }

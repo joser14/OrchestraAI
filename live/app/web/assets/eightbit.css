@@ -88,6 +88,18 @@ html[data-look="8bit"] ::-webkit-scrollbar { width: 12px; height: 12px; }
 html[data-look="8bit"] ::-webkit-scrollbar-thumb { background: var(--edge); border: 2px solid var(--bg); }
 html[data-look="8bit"] ::-webkit-scrollbar-track { background: var(--bg); }
 
+/* a subtitle inside a heading stays small body text, not a giant pixel line */
+html[data-look="8bit"] h1 .sub, html[data-look="8bit"] h2 .sub, html[data-look="8bit"] h3 .sub {
+  font-family: var(--vt) !important; font-size: 17px !important; text-transform: none !important; letter-spacing: 0 !important; font-weight: 400 !important; line-height: 1.2;
+}
+/* Skills cards in pixel style: name in the terminal face, small pixel status */
+html[data-look="8bit"] .sk-name { font-family: var(--vt); font-size: 21px; font-weight: 400; }
+html[data-look="8bit"] .sk-about { font-size: 17px; line-height: 1.25; }
+html[data-look="8bit"] .sk-foot, html[data-look="8bit"] .sk-miss { font-size: 16px; }
+html[data-look="8bit"] .sk-st { font-family: var(--px); font-size: 7px; padding: 6px 7px; border-width: 2px; }
+html[data-look="8bit"] .sk-card { border: 2px solid var(--edge); box-shadow: 3px 3px 0 rgba(0, 0, 0, .55); }
+html[data-look="8bit"] .sk-e { border-width: 2px; }
+
 /* status pills and badges */
 html[data-look="8bit"] .rpt-health, html[data-look="8bit"] .rpt-badge { font-family: var(--px); font-size: 8px; padding: 5px 8px; border-width: 2px; }
 
