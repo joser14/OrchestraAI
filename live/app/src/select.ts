@@ -52,11 +52,47 @@ export function modelCapacityGB(hw: Hardware, ollamaLoadedGB: number): number {
 /** Largest worker model (billions of parameters) for a budget: 4B on ordinary GPUs, bigger on 40 GB+ rigs. */
 export const workerMaxParams = (budgetGB: number) => (budgetGB >= 80 ? 32 : budgetGB >= 40 ? 14 : 4);
 
+/** Smaller contexts tried when no model can be the brain at the chosen one (small PCs). Below 16k the brief and the
+ *  tool list leave little room, so 8k is the last resort. */
+export const SMALL_CTX = [16384, 12288, 8192];
+
+/** The lineup for this PC. It works on any machine that can run a model at all: when nothing fits as the brain it
+ *  tries smaller contexts, then the GPU plus part of the RAM (layers split to the CPU: slower), and says so. */
 export function selectLineup(hw: Hardware, opts: { ollamaLoadedGB?: number; ctx?: number; failed?: Set<string>; available?: Set<string>; kinds?: Kind[]; custom?: CatalogModel[]; light?: LightSetting } = {}): Lineup {
-  const ctx = opts.ctx ?? 24576, warnings: string[] = [];
+  const want = opts.ctx ?? 24576;
   const cap = modelCapacityGB(hw, opts.ollamaLoadedGB ?? 0);
-  const cpuOnly = cap < 4;
-  const budget = cpuOnly ? Math.min(hw.ramGB * 0.5, 16) : cap * 0.9;   // CPU: half the RAM, capped
+  const cpuOnly = cap < 2.5;   // a 4 GB card still runs the small models whole (faster than the CPU)
+  const ram = Math.min(hw.ramGB * 0.5, 16);   // CPU: half the RAM, capped
+  const gpu = { gb: cpuOnly ? ram : cap * 0.9, split: false };
+  const split = { gb: cap * 0.9 + Math.min(hw.ramGB * 0.35, 16), split: true };   // part of the model in RAM
+  const done = (l: Lineup, ctx: number, b: { split: boolean }) => {
+    if (b.split) l.warnings.push(`No model fits in the graphics card's ${cap} GB: part of ${l.brain!.model.alias} runs from system memory (slower)`);
+    if (ctx < want) l.warnings.push(`Context lowered to ${Math.round(ctx / 1024)}k (from ${Math.round(want / 1024)}k) so a ${l.brain!.model.params >= 4 ? 'capable ' : ''}model fits on this PC`);
+    return applyLight(l, opts.light ?? 'auto');
+  };
+  const at = (ctx: number, b: { gb: number }) => buildLineup(hw, opts, cap, cpuOnly, ctx, b.gb);
+  // 1. the chosen context; a 4B+ brain there is used as is (big cards never trade context for a bigger model)
+  const first = at(want, gpu);
+  if (first.brain && first.brain.model.params >= 4) return done(first, want, gpu);
+  // 2. only a very small brain (or none): 16k / 12k are a small price for a 4B brain, which plans far better
+  const roomy = SMALL_CTX.filter((c) => c < want && c >= 12288);
+  for (const c of roomy) { const l = at(c, gpu); if (l.brain && l.brain.model.params >= 4) return done(l, c, gpu); }
+  if (first.brain) return done(first, want, gpu);
+  // 3. nothing at all: smaller contexts on the GPU, then the GPU plus part of the RAM, 8k last
+  const last = SMALL_CTX.filter((c) => c < want && c < 12288);
+  const tries: [number, { gb: number; split: boolean }][] = [
+    ...roomy.map((c) => [c, gpu] as [number, typeof gpu]),
+    ...(cpuOnly ? [] : [want, ...roomy].map((c) => [c, split] as [number, typeof gpu])),
+    ...last.flatMap((c) => (cpuOnly ? [gpu] : [gpu, split]).map((b) => [c, b] as [number, typeof gpu])),
+  ];
+  for (const [ctx, b] of tries) { const l = at(ctx, b); if (l.brain) return done(l, ctx, b); }
+  const l = buildLineup(hw, opts, cap, cpuOnly, want, gpu.gb);
+  l.warnings.push(`No model can run on this PC: the smallest needs about 2 GB of free memory (${cpuOnly ? `${ram.toFixed(1)} GB of RAM` : `${cap} GB of graphics memory`} available)`);
+  return l;
+}
+
+function buildLineup(hw: Hardware, opts: { failed?: Set<string>; available?: Set<string>; kinds?: Kind[]; custom?: CatalogModel[] }, cap: number, cpuOnly: boolean, ctx: number, budget: number): Lineup {
+  const warnings: string[] = [];
   if (cpuOnly) warnings.push(hw.bestGpu ? `GPU has only ${cap} GB for models: running on the CPU (slow)` : 'No usable GPU found: running on the CPU (slow)');
   const kinds = new Set(opts.kinds ?? ['abliterated']);   // Settings: which kinds of model to use (default abliterated only)
   kinds.add('custom');   // models the user added themselves are always eligible (no checkbox for them)
@@ -68,7 +104,8 @@ export function selectLineup(hw: Hardware, opts: { ollamaLoadedGB?: number; ctx?
 
   // Brain: the strongest model that fits whole (8B+ preferred; small models get unreliable at tool use).
   let brain = best('brain', (f) => !cpuOnly || f.model.params <= 4);
-  if (brain && brain.model.params < 8) warnings.push(`Brain is ${brain.model.params}B: reliability is lower than with an 8B model`);
+  if (brain && brain.model.params < 4) warnings.push(`Brain is a very small ${brain.model.params}B model: fine for simple jobs (write, summarize, rename); plans with many steps may go wrong`);
+  else if (brain && brain.model.params < 8) warnings.push(`Brain is ${brain.model.params}B: reliability is lower than with an 8B model`);
   // Workers: the best mid-size model (4B class), smaller than the brain when the brain is small.
   // (big rigs - 40 GB+ like a DGX Spark or two 24-32 GB cards - get bigger workers; see workerMaxParams)
   const wmax = cpuOnly ? 4 : workerMaxParams(budget);
@@ -77,7 +114,7 @@ export function selectLineup(hw: Hardware, opts: { ollamaLoadedGB?: number; ctx?
   const chores = fits.filter((f) => f.fits && f.model.roles.includes('chores') && f.model.params >= 1).sort((a, b) => a.needGB - b.needGB)[0] ?? null;
   // Two workers at once when brain + two workers all fit together.
   const parallelWorkers = brain && worker && !cpuOnly && brain.needGB + 2 * worker.needGB <= budget ? 2 : 1;
-  return applyLight({ capacityGB: cap, ctx, cpuOnly, warnings, brain, worker, vision, chores, parallelWorkers, fits, budgetGB: +budget.toFixed(2), light: false }, opts.light ?? 'auto');
+  return { capacityGB: cap, ctx, cpuOnly, warnings, brain, worker, vision, chores, parallelWorkers, fits, budgetGB: +budget.toFixed(2), light: false };
 }
 
 /** How many workers can run at the same time. Research (Ollama/llama.cpp): parallel requests share ONE copy of a

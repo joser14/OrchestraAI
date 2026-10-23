@@ -49,9 +49,9 @@ export const STANDARD: CatalogModel[] = [
   S('std-qwen3-4b', 'qwen3:4b', 'Qwen3', 4, 2.3, 74, 61, ['worker', 'brain']),
   S('std-phi4mini', 'phi4-mini:3.8b', 'Phi-4 mini', 3.8, 2.3, 96, 45, ['worker', 'chores']),
   S('std-gemma3-4b', 'gemma3:4b', 'Gemma 3', 4, 3.1, 40, 30, ['vision'], { vision: true, note: 'no tool calling' }),
-  S('std-granite4-3b', 'granite4:3b', 'Granite 4', 3, 2.0, 80, 47, ['worker', 'chores']),
+  S('std-granite4-3b', 'granite4:3b', 'Granite 4', 3, 2.0, 80, 47, ['worker', 'chores', 'brain']),
   S('std-llama32-3b', 'llama3.2:3b', 'Llama 3.2', 3, 1.9, 112, 41, ['chores']),
-  S('std-qwen3-1.7b', 'qwen3:1.7b', 'Qwen3', 1.7, 1.3, 57, 41, ['chores', 'worker']),
+  S('std-qwen3-1.7b', 'qwen3:1.7b', 'Qwen3', 1.7, 1.3, 57, 41, ['chores', 'worker', 'brain'], { note: 'light: 4 GB PCs' }),
   S('std-llama32-1b', 'llama3.2:1b', 'Llama 3.2', 1, 1.2, 16, 31, ['chores']),
   S('std-r1-8b', 'deepseek-r1:8b', 'DeepSeek-R1', 8, 4.9, 74, 0, [], { note: 'reasoning only: no tool calling' }),
   // ---- added 2026-10-14 (sizes from the registry manifests; all untested until Setup tool-tests them) ----
@@ -75,6 +75,14 @@ export const STANDARD: CatalogModel[] = [
   S('std-lfm25-8b', 'lfm2.5:8b', 'LFM 2.5 MoE', 8.5, 4.8, 32, 57, ['worker'], { moe: true, note: 'very fast' }),
   S('std-tev1-4b', 'tev1:4b', 'Tev1', 4.3, 4.3, 74, 56, ['worker', 'chores'], { note: 'decision model (Q8)' }),
   S('std-granite41-3b', 'granite4.1:3b', 'Granite 4.1', 3.4, 2.0, 80, 48, ['worker', 'chores']),
+  // ---- light models (added 2026-10-23, sizes from the registry manifests): laptops, small GPUs, CPU-only PCs.
+  //      The small ones can be the brain too, as a last resort when nothing bigger fits (select.ts warns) ----
+  S('std-qwen3-4b-instruct', 'qwen3:4b-instruct-2507-q4_K_M', 'Qwen3', 4, 2.3, 74, 62, ['worker', 'brain'], { note: 'light: no thinking pass, quick on laptops' }),
+  S('std-ministral3-3b', 'ministral-3:3b', 'Ministral 3', 3, 2.8, 52, 49, ['worker', 'chores', 'brain'], { note: 'light: built for tool use' }),
+  S('std-hermes3-3b', 'hermes3:3b', 'Hermes 3', 3, 1.9, 112, 47, ['worker', 'chores', 'brain'], { note: 'light: tuned for function calls' }),
+  S('std-qwen35-2b', 'qwen3.5:2b', 'Qwen3.5', 2, 2.5, 57, 44, ['worker', 'chores', 'vision', 'brain'], { vision: true, note: 'light: sees images' }),
+  S('std-qwen25-3b', 'qwen2.5:3b', 'Qwen2.5', 3, 1.8, 18, 43, ['chores', 'worker'], { note: 'light: very small cache, long contexts on little memory' }),
+  S('std-qwen25-1.5b', 'qwen2.5:1.5b', 'Qwen2.5', 1.5, 0.9, 14, 33, ['chores'], { note: 'light' }),
 ];
 
 export const CATALOG: CatalogModel[] = [
@@ -104,15 +112,16 @@ export const CATALOG: CatalogModel[] = [
   M('think4', 'qwen3-abliterated:4b', 'Qwen3', 4, 2.3, 74, 50, ['worker'], { note: 'thinking variant: slower, more careful' }),
   M('gemma4-e2b', 'gemma-4-abliterated:e2b', 'Gemma 4', 2, 6.7, 30, 35, ['vision'], { vision: true, note: 'large download for its size' }),
   // ---- small (chores) ----
-  M('hermes', 'Hermes-3-Llama-3.2-abliterated:3b', 'Hermes 3', 3, 1.9, 112, 48, ['worker', 'chores'], { tested: 'pass', note: 'tuned for function calls' }),
-  M('granite', 'granite4.1-abliterated:3b', 'Granite 4.1', 3, 2.0, 80, 46, ['worker', 'chores'], { tested: 'pass' }),
+  // the small models below can also be the brain: a last resort for 4 GB PCs (scored under the 4B models)
+  M('hermes', 'Hermes-3-Llama-3.2-abliterated:3b', 'Hermes 3', 3, 1.9, 112, 48, ['worker', 'chores', 'brain'], { tested: 'pass', note: 'tuned for function calls' }),
+  M('granite', 'granite4.1-abliterated:3b', 'Granite 4.1', 3, 2.0, 80, 46, ['worker', 'chores', 'brain'], { tested: 'pass' }),
   M('qwen25-3b', 'qwen2.5-abliterate:3b', 'Qwen2.5', 3, 1.8, 18, 44, ['chores', 'worker']),
   M('llama', 'llama3.2-abliterate:3b', 'Llama 3.2', 3, 2.1, 112, 40, ['chores'], { tested: 'pass' }),
-  M('mini', 'qwen3.5-abliterated:2b', 'Qwen3.5', 2, 1.8, 57, 42, ['vision', 'chores'], { vision: true, tested: 'pass' }),
+  M('mini', 'qwen3.5-abliterated:2b', 'Qwen3.5', 2, 1.8, 57, 42, ['vision', 'chores', 'worker', 'brain'], { vision: true, tested: 'pass', note: 'light: sees images' }),
   M('vl', 'qwen3-vl-abliterated:2b', 'Qwen3-VL', 2, 1.8, 57, 41, ['vision', 'chores'], { vision: true, tested: 'pass' }),
   M('granite-vision', 'granite3.2-vision-abliterated:2b', 'Granite 3.2 Vision', 2, 2.3, 40, 38, ['vision', 'chores'], { vision: true, note: 'documents and charts' }),
   M('granite2', 'granite3.2-abliterated:2b', 'Granite 3.2', 2, 1.4, 40, 36, ['chores']),
-  M('tiny', 'qwen3-abliterated:1.7b', 'Qwen3', 1.7, 1.0, 57, 40, ['chores', 'worker'], { tested: 'pass' }),
+  M('tiny', 'qwen3-abliterated:1.7b', 'Qwen3', 1.7, 1.0, 57, 40, ['chores', 'worker', 'brain'], { tested: 'pass', note: 'light: the smallest that can lead the team (4 GB PCs)' }),
   M('qwen25-1.5b', 'qwen2.5-abliterate:1.5b', 'Qwen2.5', 1.5, 0.9, 14, 34, ['chores']),
   M('moe15', 'huihui-moe-abliterated:1.5b', 'Huihui MoE', 1.5, 0.9, 28, 33, ['chores'], { moe: true }),
   M('lfm', 'lfm2.5-abliterated:1.2b', 'LFM 2.5', 1.2, 0.7, 32, 38, ['chores'], { tested: 'pass', note: 'very fast (340 tok/s here)' }),

@@ -72,6 +72,31 @@ test('no GPU: CPU lineup, small brain, warning', () => {
   const l = selectLineup(hw(null, 16), { available: avail });
   assert.ok(l.cpuOnly); assert.ok(l.brain && l.brain.model.params <= 4); assert.ok(l.warnings.length);
 });
+// ---- works for anyone: weak PCs always get a team, with the trade-off said plainly ----
+test('8 GB RAM laptop, no GPU: a 4B team on the CPU at a 16k context (24k does not fit)', () => {
+  const l = selectLineup(hw(null, 8), { available: avail });
+  assert.ok(l.brain, 'a brain is found'); assert.ok(l.cpuOnly);
+  assert.equal(l.ctx, 16384); assert.ok(l.warnings.some((w) => /Context lowered to 16k/.test(w)));
+  assert.equal(l.worker?.model.tag, l.brain!.model.tag, 'Light mode: one model');
+});
+test('4 GB RAM, no GPU: the smallest model leads at an 8k context, with a plain warning', () => {
+  const l = selectLineup(hw(null, 4), { available: avail });
+  assert.ok(l.brain, 'a brain is found'); assert.ok(l.brain!.model.params < 4);
+  assert.equal(l.ctx, 8192); assert.ok(l.warnings.some((w) => /very small/.test(w)));
+});
+test('4 GB graphics card: a small brain on the GPU (no CPU fallback needed)', () => {
+  const l = selectLineup(hw({ vramGB: 4, freeGB: 3.8 }), { available: avail });
+  assert.ok(l.brain); assert.equal(l.cpuOnly, false);
+  assert.ok(!l.warnings.some((w) => /system memory/.test(w)), l.warnings.join(' | '));
+});
+test('2 GB RAM: nothing can run, and the lineup says why instead of failing silently', () => {
+  const l = selectLineup(hw(null, 2), { available: avail });
+  assert.equal(l.brain, null); assert.ok(l.warnings.some((w) => /No model can run/.test(w)));
+});
+test('light models: standard-only PCs get a light brain too', () => {
+  const l = selectLineup(hw(null, 6), { available: avail, kinds: ['standard'] });
+  assert.ok(l.brain && l.brain.model.kind === 'standard', `brain ${l.brain?.model.tag}`);
+});
 test('recorded tool-test failures are never offered; unverified tags are skipped until confirmed', () => {
   const l = selectLineup(hw({ vramGB: 16, freeGB: 16 }), { available: new Set(['huihui_ai/qwen3-abliterated:8b']) });
   assert.notEqual(l.brain?.model.alias, 'large', '14B not confirmed in the registry');

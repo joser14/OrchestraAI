@@ -151,6 +151,8 @@ export class Setup {
     const say = (m: string) => { p.log.push(`${new Date().toLocaleTimeString()} ${m}`); p.step = m; this.save(p); };
     try {
       const { lineup } = await this.plan(ctx);
+      // a small PC may only fit a model at a smaller context (select.ts): set the team up with that, and remember it
+      if (lineup.ctx !== ctx) { say(`Using a ${Math.round(lineup.ctx / 1024)}k context so a model fits on this PC`); ctx = lineup.ctx; this.store.set('settings', { ...getSettings(this.store), ctx }); }
       p.lineup = { brain: lineup.brain?.model.alias, worker: lineup.worker?.model.alias, vision: lineup.vision?.model.alias, chores: lineup.chores?.model.alias, warnings: lineup.warnings, parallelWorkers: lineup.parallelWorkers };
       const inst = await installedTags();
       preferInstalled(lineup, inst, say); applyLight(lineup, getSettings(this.store).light);

@@ -35,8 +35,9 @@ export const DEFAULTS: Settings = { autonomy: 'ask', workers: ['worker', 'worker
   // main thinks: Qwen3 on Ollama sometimes writes its tool call inside the thinking text; the tool-call rescue proxy
   // (ollamaproxy.ts) turns those into real calls, so thinking runs no longer end with nothing done.
   thinking: { main: 'low', worker: 'off' }, lightContext: false, runMinutes: 8, interpret: true, learn: true, review: false, kvCache: 'f16', fastPath: true, light: 'auto' };
-/** Context sizes offered: up to 32k always; 48k and 64k only with the q8_0 cache (and slower: small models lose focus). */
-export const CTX_SIZES = [16384, 24576, 32768, 49152, 65536];
+/** Context sizes offered: up to 32k always; 48k and 64k only with the q8_0 cache (and slower: small models lose focus).
+ *  8k and 12k are for small PCs (Setup picks them when nothing fits at 16k). */
+export const CTX_SIZES = [8192, 12288, 16384, 24576, 32768, 49152, 65536];
 export const RUN_MINUTES = [4, 8, 12, 20];
 export const thinkingFor = (s: Settings, agent: string): Thinking => s.thinking[agent] ?? (agent === 'main' ? s.thinking.main : s.thinking.worker) ?? 'off';
 const POLICY: Record<Autonomy, { security: string; ask: string; askFallback: string }> = {
