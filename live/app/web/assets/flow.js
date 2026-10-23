@@ -167,6 +167,11 @@
     for (const e of fileEvents.slice(0, 5)) {
       const r = el('div', 'fn-change ' + e.kind); r.title = `${e.kind === 'removed' ? 'Removed' : 'Added'} ${e.path}`;
       r.append(el('i', null, e.kind === 'removed' ? '−' : '+'), el('span', 'fname', e.path), el('span', 'fwhen', ago(e.at)));
+      if (e.kind === 'removed') {   // bring it back from the work folder's history (snapshots are taken before each task)
+        const b = el('button', 'fn-restore', '↺'); b.type = 'button'; b.title = 'Restore this file';
+        b.onclick = async () => { b.disabled = true; try { toast((await postJSON('/api/work/restore', { path: e.path })).msg); loadSide(); } catch (err) { toast(err.message, true); b.disabled = false; } };
+        r.append(b);
+      }
       list.append(r);
     }
     ch.append(fileEvents.length ? list : el('div', 'fn-empty', 'Files added or removed show up here.'));

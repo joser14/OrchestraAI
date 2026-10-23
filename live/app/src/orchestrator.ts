@@ -15,6 +15,7 @@ import { lastAssistantText } from './transcripts.ts';
 import { KeepAwake } from './health.ts';
 import { getSettings } from './settings.ts';
 import { agentCost } from './usage.ts';
+import { snapshotWork } from './outputs.ts';
 import { readLearned, writeLearned, applyChanges, askModel, learnPrompt } from './learn.ts';
 import { verifyFiles, needsInterpret, conversationBefore, folderSnapshot, buildPrompt, parseInterpretation, callModel, type Interpretation } from './interpret.ts';
 const run = promisify(execFile);
@@ -446,6 +447,7 @@ export class Orchestrator {
         }
         t.attempts++; t.updated = now.toISOString();
         this.store.saveTasks(tasks);
+        await snapshotWork(this.cfg.workDir, `before ${t.id} (${w}, try ${t.attempts})`);   // checkpoint: what the run deletes can be restored
         await this.start(w, `task ${t.id}, try ${t.attempts}`);
         // first start of this task: the cost of the task is counted from here (see taskCost)
         const starts = this.store.get<Record<string, number>>('taskStarts', {}); const sk = `${t.id}|${t.created}`;

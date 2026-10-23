@@ -8,6 +8,7 @@ import os, { homedir } from 'node:os';
 import { liveGen } from './ollamaproxy.ts';
 import { listMemory, readMemory, saveMemory } from './memory.ts';
 import { listSkills, saveSkill, removeSkill } from './teamskills.ts';
+import { restoreWork } from './outputs.ts';
 import { join, resolve, basename, extname, relative, isAbsolute } from 'node:path';
 import { createRequire } from 'node:module';
 import { execFile, spawn } from 'node:child_process';
@@ -591,6 +592,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
       await o.gw.runJob(j.id); act(`schedule ${j.name}: run now`);
       return { ok: true, msg: `${j.name} started.` };
     },
+    '/api/work/restore': async (b) => { const msg = await restoreWork(cfg.workDir, String(b.path || '')); act(`work folder: ${msg}`); return { ok: true, msg }; },
     '/api/teamskills/save': (b) => { const r = saveSkill(cfg, { name: String(b.name || ''), description: String(b.description || ''), body: String(b.body || ''), old: b.old ? String(b.old) : undefined }); act(`skill saved: ${r.name}`); return r; },
     '/api/teamskills/remove': (b) => { const r = removeSkill(cfg, String(b.name || '')); act(`skill removed: ${b.name}`); return r; },
     '/api/memory/save': (b) => { const r = saveMemory(cfg, String(b.id || ''), String(b.text ?? '')); act(`memory: saved ${b.id}`); return r; },

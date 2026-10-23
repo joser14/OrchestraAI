@@ -152,6 +152,8 @@
 .fn-change.added i { color: #4ade80; background: rgba(74, 222, 128, .12); }
 .fn-change .fname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fn-change .fwhen { color: var(--f-dim); font-size: 10px; }
+.fn-restore { flex: none; padding: 0 6px; height: 18px; line-height: 16px; font-size: 12px; background: none; border: 1px solid var(--f-dim); color: var(--f-ink); cursor: pointer; }
+.fn-restore:hover { border-color: var(--c); color: var(--c); }
 @keyframes newfile { 0%, 40% { background: color-mix(in srgb, var(--c) 22%, transparent); } }
 
 /* ---------- the IT orchestra (SVG, drawn by flow.js): your face, the composer brain, the agent brains, the output rack ---------- */

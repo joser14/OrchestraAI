@@ -63,6 +63,33 @@ export async function mirrorToOpenClaw(o: Orchestrator) {
   } finally { mirroring = false; }
 }
 
+/** Checkpoint: commit the work folder now (before a worker starts a task), so whatever the run deletes or overwrites
+ *  can be restored (restoreWork). Quiet and bounded: a slow or missing git never holds up the run. */
+export async function snapshotWork(work: string, label: string): Promise<boolean> {
+  try {
+    if (!existsSync(join(work, '.git'))) { await run('git', ['-C', work, 'init', '-q']); await run('git', ['-C', work, 'config', 'user.name', 'agents']); await run('git', ['-C', work, 'config', 'user.email', 'agents@localhost']); }
+    const { stdout } = await run('git', ['-C', work, 'status', '--porcelain'], { timeout: 15000 });
+    if (!stdout.trim()) return false;
+    await run('git', ['-C', work, 'add', '-A'], { timeout: 30000 });
+    await run('git', ['-C', work, 'commit', '-q', '-m', label.slice(0, 120)], { timeout: 15000 });
+    return true;
+  } catch { return false; }
+}
+
+/** Bring back a file from the work folder's history: the last saved version (or the one just before it was deleted). */
+export async function restoreWork(work: string, rel: string): Promise<string> {
+  const p = String(rel || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!p || p.split('/').some((s) => s === '..' || s.startsWith('.'))) throw new Error('not a work-folder file');
+  const git = (args: string[]) => run('git', ['-C', work, ...args], { timeout: 20000 });
+  if (!existsSync(join(work, '.git'))) throw new Error('the work folder has no history yet');
+  let inHead = true; try { await git(['cat-file', '-e', `HEAD:${p}`]); } catch { inHead = false; }
+  if (inHead) { await git(['checkout', 'HEAD', '--', p]); return `${p} restored from the last snapshot`; }
+  const { stdout } = await git(['rev-list', '-n', '1', 'HEAD', '--', p]);
+  const c = stdout.trim(); if (!c) throw new Error(`${p} was never saved in the work folder history`);
+  await git(['checkout', `${c}^`, '--', p]);
+  return `${p} restored (the version from before it was deleted)`;
+}
+
 /** Hourly: tidy the work folder by rule, purge old outbox/done files, commit work history to git. */
 export async function housekeeping(o: Orchestrator, now = new Date()) {
   const work = o.cfg.workDir, trash = join(work, '.trash'); mkdirSync(trash, { recursive: true });
