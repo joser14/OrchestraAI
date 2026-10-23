@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Orchestra</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<script>
+  // Look (8-bit by default, or classic), set before the first paint so the page never flashes the other style.
+  (function () { var l = '8bit'; try { l = localStorage.getItem('look') || '8bit'; } catch (e) {} if (l === '8bit') document.documentElement.dataset.look = '8bit'; })();
+</script>
 <style>
   /* Dark by default; the ☀ button switches to light (remembered). */
   :root {
@@ -1087,6 +1091,7 @@
 </div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <link rel="stylesheet" href="/assets/flow.css">
+<link rel="stylesheet" href="/assets/eightbit.css">
 <script>
 const $ = (id) => document.getElementById(id);
 let lastMtime = 0;

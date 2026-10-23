@@ -1,0 +1,94 @@
+/* Orchestra - 8-bit look (Settings > Look; on by default). Pixel fonts, square corners, hard offset shadows,
+   stepped charts, a faint scanline, and a tighter layout. Loaded last, so it overrides the base and Flow styles.
+   Everything is scoped to html[data-look="8bit"]: the classic look is untouched. */
+html[data-look="8bit"] {
+  --radius: 0px;
+  --px: 'Press Start 2P', ui-monospace, monospace;      /* labels, headings, buttons */
+  --vt: 'VT323', ui-monospace, 'Cascadia Mono', monospace;   /* body text and big numbers */
+  --pxshadow: 4px 4px 0 rgba(0, 0, 0, .65);
+  --edge: color-mix(in srgb, var(--red, #ff2d3d) 38%, var(--border));
+}
+html[data-look="8bit"][data-theme="light"] { --pxshadow: 4px 4px 0 rgba(60, 10, 16, .22); }
+
+/* type */
+html[data-look="8bit"] body { font-family: var(--vt); font-size: 19px; line-height: 1.2; letter-spacing: .01em; -webkit-font-smoothing: none; }
+html[data-look="8bit"] h1, html[data-look="8bit"] h2, html[data-look="8bit"] h3,
+html[data-look="8bit"] .t-lbl, html[data-look="8bit"] .t-k, html[data-look="8bit"] .fig-l, html[data-look="8bit"] .k-label,
+html[data-look="8bit"] .rpt-kicker, html[data-look="8bit"] .acc-lbl, html[data-look="8bit"] .tl-state, html[data-look="8bit"] .t-dl dt,
+html[data-look="8bit"] #tabs button, html[data-look="8bit"] nav button, html[data-look="8bit"] .fn-name, html[data-look="8bit"] .fn-lbl,
+html[data-look="8bit"] button, html[data-look="8bit"] .pill, html[data-look="8bit"] th {
+  font-family: var(--px) !important; font-weight: 400 !important; letter-spacing: 0 !important; text-transform: uppercase;
+}
+html[data-look="8bit"] h1 { font-size: 15px; line-height: 1.6; }
+html[data-look="8bit"] h2 { font-size: 11px; line-height: 1.7; }
+html[data-look="8bit"] h3 { font-size: 10px; }
+html[data-look="8bit"] .t-lbl, html[data-look="8bit"] .acc-lbl, html[data-look="8bit"] .rpt-kicker { font-size: 9px !important; }
+html[data-look="8bit"] .t-k, html[data-look="8bit"] .fig-l, html[data-look="8bit"] .k-label, html[data-look="8bit"] .t-dl dt, html[data-look="8bit"] th { font-size: 8px !important; line-height: 1.8 !important; }
+html[data-look="8bit"] button, html[data-look="8bit"] #tabs button, html[data-look="8bit"] nav button, html[data-look="8bit"] .tl-state, html[data-look="8bit"] .pill { font-size: 9px !important; }
+html[data-look="8bit"] .sub, html[data-look="8bit"] .t-sub, html[data-look="8bit"] .fig-s { font-size: 17px; }
+html[data-look="8bit"] code, html[data-look="8bit"] pre, html[data-look="8bit"] .mono { font-family: var(--vt); font-size: 18px; }
+/* big readouts in the pixel terminal face (narrow, so a size up) */
+html[data-look="8bit"] .t-big { font-family: var(--vt) !important; font-size: 64px !important; font-weight: 400 !important; letter-spacing: 0 !important; }
+html[data-look="8bit"] .t-num, html[data-look="8bit"] .fig-v, html[data-look="8bit"] .k-val { font-family: var(--vt) !important; font-size: 46px !important; font-weight: 400 !important; }
+html[data-look="8bit"] .t-trio b, html[data-look="8bit"] .t-mid, html[data-look="8bit"] .t-foot b { font-family: var(--vt) !important; font-weight: 400 !important; font-size: 24px !important; }
+html[data-look="8bit"] .t-foot, html[data-look="8bit"] .t-dl dd { font-family: var(--vt) !important; font-size: 18px; }
+html[data-look="8bit"] .t-big small, html[data-look="8bit"] .t-num small { font-family: var(--px); font-size: 8px; text-transform: uppercase; }
+html[data-look="8bit"] .t-title { font-family: var(--px); font-size: 12px; line-height: 1.6; }
+
+/* blocks: square, a 2px edge, a hard drop shadow; tighter padding (the "tighten" pass) */
+html[data-look="8bit"] *, html[data-look="8bit"] *::before, html[data-look="8bit"] *::after { border-radius: 0 !important; }
+html[data-look="8bit"] .panel, html[data-look="8bit"] .tile, html[data-look="8bit"] .kpi, html[data-look="8bit"] .report,
+html[data-look="8bit"] .acc, html[data-look="8bit"] .fnode, html[data-look="8bit"] .card, html[data-look="8bit"] .mcp-form {
+  border: 2px solid var(--edge) !important; box-shadow: var(--pxshadow) !important;
+}
+html[data-look="8bit"] .tile::after, html[data-look="8bit"] .kpi::after { display: none; }
+html[data-look="8bit"] .panel.pad { padding: 12px 14px; }
+html[data-look="8bit"] .tile { padding: 10px 12px; gap: 4px; }
+html[data-look="8bit"] .tl-grid { gap: 10px; }
+html[data-look="8bit"] .grid2 { gap: 10px; }
+html[data-look="8bit"] .kpis { gap: 10px; }
+html[data-look="8bit"] .kpi { padding: 10px 12px; }
+html[data-look="8bit"] .set-row { padding: 7px 0; }
+html[data-look="8bit"] .acc > summary { padding: 6px 10px; }
+html[data-look="8bit"] .acc-body { padding: 2px 10px 10px; }
+html[data-look="8bit"] .tabpane { padding-top: 2px; }
+html[data-look="8bit"] .spark { height: 48px; } html[data-look="8bit"] .spark.tall { height: 128px; }
+/* live tile: a hard red frame instead of a soft glow */
+html[data-look="8bit"] .t-gen.live { border-color: var(--red, #ff2d3d) !important; box-shadow: 4px 4px 0 var(--red, #ff2d3d) !important; }
+html[data-look="8bit"] .tl-state.live { box-shadow: 3px 3px 0 var(--red, #ff2d3d); }
+
+/* controls: chunky, press down on click */
+html[data-look="8bit"] button, html[data-look="8bit"] .btn { box-shadow: 3px 3px 0 rgba(0, 0, 0, .7); border-width: 2px !important; padding: 8px 12px; transition: none; }
+html[data-look="8bit"] button:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: none; }
+html[data-look="8bit"] input, html[data-look="8bit"] select, html[data-look="8bit"] textarea, html[data-look="8bit"] .inp {
+  font-family: var(--vt) !important; font-size: 19px !important; border: 2px solid var(--edge) !important; box-shadow: inset 2px 2px 0 rgba(0, 0, 0, .45);
+}
+html[data-look="8bit"] .bar, html[data-look="8bit"] .bar > div, html[data-look="8bit"] .segbar .seg { image-rendering: pixelated; }
+html[data-look="8bit"] .bar { height: 10px; border: 2px solid var(--edge); background: transparent; }
+html[data-look="8bit"] .bar > div { background: repeating-linear-gradient(90deg, var(--red, #ff2d3d) 0 6px, transparent 6px 8px) !important; }
+html[data-look="8bit"] .segbar { gap: 2px; height: 18px; }
+html[data-look="8bit"] .segbar .seg { box-shadow: inset -3px -3px 0 rgba(0, 0, 0, .3), inset 3px 3px 0 rgba(255, 255, 255, .12); }
+
+/* charts and drawings: no anti-aliasing, so lines step like pixels */
+html[data-look="8bit"] svg, html[data-look="8bit"] canvas, html[data-look="8bit"] img { image-rendering: pixelated; shape-rendering: crispEdges; }
+html[data-look="8bit"] .sp-line { stroke-width: 3; stroke-linejoin: miter; stroke-linecap: square; }
+html[data-look="8bit"] .sp-area { opacity: .28; }
+html[data-look="8bit"] .sp-dot { stroke-width: 0; }
+
+/* a faint CRT scanline over the whole app (click-through) */
+html[data-look="8bit"] body::after {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .14) 0 1px, transparent 1px 3px);
+  mix-blend-mode: multiply;
+}
+html[data-look="8bit"][data-theme="light"] body::after { background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .04) 0 1px, transparent 1px 3px); }
+
+/* scrollbars: blocky */
+html[data-look="8bit"] ::-webkit-scrollbar { width: 12px; height: 12px; }
+html[data-look="8bit"] ::-webkit-scrollbar-thumb { background: var(--edge); border: 2px solid var(--bg); }
+html[data-look="8bit"] ::-webkit-scrollbar-track { background: var(--bg); }
+
+/* status pills and badges */
+html[data-look="8bit"] .rpt-health, html[data-look="8bit"] .rpt-badge { font-family: var(--px); font-size: 8px; padding: 5px 8px; border-width: 2px; }
+
+@media (prefers-reduced-motion: reduce) { html[data-look="8bit"] body::after { display: none; } }
