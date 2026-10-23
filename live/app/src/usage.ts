@@ -25,6 +25,22 @@ export const RANGES: Range[] = [
   { key: 'all', label: 'All time', ms: null, bucketMs: 24 * HOUR },
 ];
 
+/** Model calls, tokens and runs one agent spent between two times (a task's cost), read from its transcripts. */
+export function agentCost(agent: string, fromMs: number, toMs: number): { calls: number; tokIn: number; tokOut: number; runs: number } {
+  const out = { calls: 0, tokIn: 0, tokOut: 0, runs: 0 };
+  const file = transcriptDb(agent); if (!existsSync(file)) return out;
+  let db: DatabaseSync; try { db = new DatabaseSync(file, { readOnly: true }); } catch { return out; }
+  try {
+    for (const r of db.prepare('SELECT seq, event_json, event_zstd FROM transcript_events WHERE created_at BETWEEN ? AND ? LIMIT 20000').all(fromMs, toMs) as any[]) {
+      if (r.seq === 0) out.runs++;
+      let e: any; try { e = JSON.parse(r.event_json ?? zstdDecompressSync(r.event_zstd).toString('utf8')); } catch { continue; }
+      const m = e?.type === 'message' ? e.message : null;
+      if (m?.role === 'assistant' && m.usage) { out.calls++; out.tokIn += (m.usage.input || 0) + (m.usage.cacheRead || 0); out.tokOut += m.usage.output || 0; }
+    }
+  } catch {} finally { db.close(); }
+  return out;
+}
+
 export class UsageIndex {
   store: Store; agents: string[]; logDir: string; busy = false; lastRun = 0;
   private prevTs = new Map<string, number>();   // session -> last event time (effective-speed seconds)

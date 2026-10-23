@@ -1385,8 +1385,11 @@ async function loadTasks() {
   if (!tasks.length) { box.append(el('div', 'sub', 'No tasks yet. Ask main for something; it splits work into tasks for the workers.')); return; }
   for (const t of tasks.slice(0, 30)) {
     const row = el('div', 'trow ' + t.status);
-    row.title = t.text;
-    row.append(el('span', null, t.id), el('span', 'who a-' + t.assignee, t.assignee), el('span', 'st ' + t.status, t.status), el('span', null, t.text), el('span', 'sub', t.attempts ? `×${t.attempts}` : ''));
+    // finished tasks show what they cost: time, and tokens written (the tooltip has runs, calls and tokens read)
+    const c = t.cost, dur = (s) => (s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.round((s % 3600) / 60)}m` : s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`);
+    const costTxt = c ? `${dur(c.secs)} · ${kfmtD(c.tokOut)} tok` : (t.attempts ? `×${t.attempts}` : '');
+    row.title = t.text + (c ? `\n\nCost: ${dur(c.secs)}, ${c.runs} run(s), ${c.calls} model calls, ${c.tokIn.toLocaleString()} tokens read, ${c.tokOut.toLocaleString()} written` : '');
+    row.append(el('span', null, t.id), el('span', 'who a-' + t.assignee, t.assignee), el('span', 'st ' + t.status, t.status), el('span', null, t.text), el('span', 'sub tcost', costTxt));
     box.append(row);
   }
 }

@@ -14,6 +14,7 @@ import { applyPosts, autoDone, shouldRenumber, parseCommands, minuteOf, COMMANDE
 import { lastAssistantText } from './transcripts.ts';
 import { KeepAwake } from './health.ts';
 import { getSettings } from './settings.ts';
+import { agentCost } from './usage.ts';
 import { verifyFiles, needsInterpret, conversationBefore, folderSnapshot, buildPrompt, parseInterpretation, callModel, type Interpretation } from './interpret.ts';
 const run = promisify(execFile);
 
@@ -106,8 +107,9 @@ export class Orchestrator {
     const autoClosed = autoDone(tasks.filter((t) => !reopened.has(`${t.id}|${t.created}`)), this.cfg.workDir, this.stat, now);
     for (const t of autoClosed) this.log(`task ${t.id} done (auto: all its files exist)`);
     for (const t of [...fx.done, ...autoClosed]) {
-      const key = `${t.id}|${t.created}`; if (reopened.has(key)) continue;
-      const v = verifyFiles(t.text, this.cfg.workDir); if (!v.problems.length) continue;
+      const key = `${t.id}|${t.created}`;
+      const v = reopened.has(key) ? { problems: [] as string[] } : verifyFiles(t.text, this.cfg.workDir);
+      if (!v.problems.length) { this.taskCost(t, now); continue; }
       reopened.add(key); t.status = 'open'; t.updated = now.toISOString();
       this.post('system', t.assignee, `${t.id} is not done yet - Orchestra checked the files: ${v.problems.join('; ')}. Fix exactly this (PowerShell on Windows: e.g. Remove-Item 'folder\\*.tmp'), list the folder to confirm, then team_done ${t.id} again.`);
       this.log(`task ${t.id}: check failed after DONE (${v.problems.join('; ').slice(0, 160)}) - reopened for ${t.assignee}`);
@@ -303,6 +305,19 @@ export class Orchestrator {
     } catch (e: any) { this.log(`interpret: skipped (${String(e?.message || e).slice(0, 120)})`); }
   }
 
+  /** A finished task's cost: wall time from its first start, and the worker's runs, model calls and tokens in that
+   *  window (Tasks page). Kept in the store under "id|created" (the tasks table has fixed columns). */
+  private taskCost(t: Task, now: Date) {
+    const key = `${t.id}|${t.created}`;
+    const from = this.store.get<Record<string, number>>('taskStarts', {})[key] || Date.parse(t.created);
+    if (!from) return;
+    const c = agentCost(t.assignee, from, now.getTime());
+    const costs = this.store.get<Record<string, any>>('taskCosts', {});
+    costs[key] = { secs: Math.round((now.getTime() - from) / 1000), ...c, at: now.toISOString() };
+    this.store.set('taskCosts', Object.fromEntries(Object.entries(costs).sort((a, b) => String(b[1].at).localeCompare(String(a[1].at))).slice(0, 500)));
+    this.log(`task ${t.id} cost: ${Math.round((now.getTime() - from) / 1000)} s, ${c.runs} run(s), ${c.tokIn} tokens read, ${c.tokOut} written`);
+  }
+
   private async start(a: string, why: string) {
     const j = this.jobs[a]; if (!j) return;
     await this.gw.runJob(j.id);
@@ -400,6 +415,9 @@ export class Orchestrator {
         t.attempts++; t.updated = now.toISOString();
         this.store.saveTasks(tasks);
         await this.start(w, `task ${t.id}, try ${t.attempts}`);
+        // first start of this task: the cost of the task is counted from here (see taskCost)
+        const starts = this.store.get<Record<string, number>>('taskStarts', {}); const sk = `${t.id}|${t.created}`;
+        if (!starts[sk]) { starts[sk] = Date.now(); const keep = Object.entries(starts).sort((a, b) => b[1] - a[1]).slice(0, 300); this.store.set('taskStarts', Object.fromEntries(keep)); }
         free--;
       }
     }

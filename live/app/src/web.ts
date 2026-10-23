@@ -265,7 +265,8 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
     '/api/tasks': () => {
       let clearedAt = ''; try { clearedAt = readFileSync(join(cfg.boardDir, 'tasks-cleared.txt'), 'utf8').trim(); } catch {}
       let tasks = o.store.tasks(); if (clearedAt) tasks = tasks.filter((t) => t.status === 'open' || t.status === 'stuck' || new Date(t.created) > new Date(clearedAt));
-      return { tasks, paused: existsSync(join(cfg.root, '.stopped')) };
+      const costs = o.store.get<Record<string, any>>('taskCosts', {});   // time / runs / tokens of finished tasks
+      return { tasks: tasks.map((t) => (costs[`${t.id}|${t.created}`] ? { ...t, cost: costs[`${t.id}|${t.created}`] } : t)), paused: existsSync(join(cfg.root, '.stopped')) };
     },
     '/api/automations': () => ({ lines: (existsSync(join(cfg.boardDir, 'AUTOMATIONS.md')) ? readFileSync(join(cfg.boardDir, 'AUTOMATIONS.md'), 'utf8') : '').split(/\r?\n/).filter((l) => /^\s*(daily|every)\s/.test(l)) }),
     '/api/history': async () => { try { const { stdout } = await run('git', ['-C', cfg.workDir, 'log', '--pretty=format:%h|%ad|%s', '--date=format:%m-%d %H:%M', '-n', '12', '--name-only'], { windowsHide: true });
