@@ -100,6 +100,12 @@ html[data-look="8bit"] .sk-st { font-family: var(--px); font-size: 7px; padding:
 html[data-look="8bit"] .sk-card { border: 2px solid var(--edge); box-shadow: 3px 3px 0 rgba(0, 0, 0, .55); }
 html[data-look="8bit"] .sk-e { border-width: 2px; }
 
+/* Kanban in pixel style */
+html[data-look="8bit"] .kb-col, html[data-look="8bit"] .kb-card { border-width: 2px; }
+html[data-look="8bit"] .kb-card { box-shadow: 3px 3px 0 rgba(0, 0, 0, .5); }
+html[data-look="8bit"] .kb-head { font-family: var(--px); font-size: 8px; letter-spacing: 0; }
+html[data-look="8bit"] .kb-text { font-size: 18px; line-height: 1.15; } html[data-look="8bit"] .kb-top, html[data-look="8bit"] .kb-meta { font-size: 16px; }
+
 /* status pills and badges */
 html[data-look="8bit"] .rpt-health, html[data-look="8bit"] .rpt-badge { font-family: var(--px); font-size: 8px; padding: 5px 8px; border-width: 2px; }
 

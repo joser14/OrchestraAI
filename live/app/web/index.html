@@ -227,6 +227,19 @@
   .page-title { font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
   .page-sub { font-size: 12.5px; color: var(--muted); }
   .content .wrap { width: 100%; max-width: 1360px; padding: 24px 28px 40px; }
+  /* Tasks Kanban: four columns, compact cards */
+  .kanban { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: start; }
+  .kb-col { border: 1px solid var(--border); padding: 8px; min-height: 120px; display: flex; flex-direction: column; gap: 8px; background: color-mix(in srgb, var(--bg) 50%, transparent); }
+  .kb-head { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 2px 2px 6px; border-bottom: 1px solid var(--border); }
+  .kb-n { font-family: ui-monospace, monospace; color: var(--text); }
+  .kb-working .kb-head { color: var(--red); } .kb-stuck .kb-head { color: #f3c969; } .kb-done .kb-head { color: #4ade80; }
+  .kb-card { border: 1px solid var(--border); background: var(--panel); padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+  .kb-working .kb-card { border-color: color-mix(in srgb, var(--red) 55%, var(--border)); } .kb-stuck .kb-card { border-color: rgba(243, 201, 105, .5); }
+  .kb-top { display: flex; align-items: baseline; gap: 8px; font-size: 12px; } .kb-when { margin-left: auto; font-size: 11px; }
+  .kb-text { font-size: 13px; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+  .kb-meta { font-size: 11.5px; } .kb-empty { text-align: center; padding: 10px 0; }
+  @media (max-width: 900px) { .kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .kanban { grid-template-columns: 1fr; } }
   /* Memory page: file list + editor */
   .mem { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 12px; align-items: start; }
   .mem-files { display: flex; flex-direction: column; gap: 2px; max-height: calc(100vh - 200px); overflow: auto; }
@@ -894,7 +907,7 @@
   <!-- TASKS -->
   <div class="tabpane" id="tab-tasks">
     <section class="panel pad">
-      <h2>Tasks <span class="sub" id="taskSummary"></span> <button type="button" class="small ghost" id="clearTasksBtn" style="float:right">Clear tasks</button></h2>
+      <h2>Tasks <span class="sub" id="taskSummary"></span> <span style="float:right;display:inline-flex;gap:8px"><span class="seg" id="taskView"><button type="button" data-v="board">Board</button><button type="button" data-v="list">List</button></span><button type="button" class="small ghost" id="clearTasksBtn">Clear tasks</button></span></h2>
       <div id="tasks" class="tasks"><div class="sub">Loading…</div></div>
     </section>
     <section class="panel pad">
@@ -1441,6 +1454,8 @@ function setPaused(p) {
 }
 
 // ---- tasks ----
+let taskView = (() => { try { return localStorage.getItem('taskView') || 'board'; } catch { return 'board'; } })();
+document.querySelectorAll('#taskView button').forEach((b) => { b.onclick = () => { taskView = b.dataset.v; try { localStorage.setItem('taskView', taskView); } catch {} loadTasks(); }; });
 async function loadTasks() {
   const r = await fetch('/api/tasks').then((r) => r.json()).catch(() => null);
   if (!r) return;
@@ -1452,6 +1467,30 @@ async function loadTasks() {
   $('taskBadge').textContent = (cnt('open') + cnt('stuck')) || '';
   $('taskSummary').textContent = tasks.length ? `${cnt('open')} open · ${cnt('stuck')} stuck · ${cnt('done')} done` : '';
   if (!tasks.length) { box.append(el('div', 'sub', 'No tasks yet. Ask main for something; it splits work into tasks for the workers.')); return; }
+  document.querySelectorAll('#taskView button').forEach((b) => b.classList.toggle('on', b.dataset.v === taskView));
+  if (taskView === 'board') {
+    // Kanban: queued (waiting for its worker), working (its worker is running), stuck, done (newest first)
+    const ag = await fetch('/api/agents').then((x) => x.json()).catch(() => null);
+    const busy = new Set(((ag && ag.agents) || []).filter((a) => a.running).map((a) => a.agent));
+    const cols = [['Queued', tasks.filter((t) => t.status === 'open' && !busy.has(t.assignee))], ['Working', tasks.filter((t) => t.status === 'open' && busy.has(t.assignee))],
+      ['Stuck', tasks.filter((t) => t.status === 'stuck')], ['Done', tasks.filter((t) => t.status === 'done').slice(0, 12)]];
+    const dur = (s) => (s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.round((s % 3600) / 60)}m` : s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`);
+    const board = el('div', 'kanban');
+    for (const [name, list] of cols) {
+      const col = el('div', 'kb-col kb-' + name.toLowerCase()); const h = el('div', 'kb-head'); h.append(el('span', null, name), el('span', 'kb-n', String(list.length))); col.append(h);
+      for (const t of list) {
+        const c = el('div', 'kb-card'); c.title = t.text;
+        const top = el('div', 'kb-top'); top.append(el('b', null, t.id), el('span', 'who a-' + t.assignee, t.assignee), el('span', 'sub kb-when', fmtWhen(Date.parse(t.updated))));
+        c.append(top, el('div', 'kb-text', t.text));
+        const meta = t.cost ? `${dur(t.cost.secs)} · ${kfmtD(t.cost.tokOut)} tokens · ${t.cost.runs} run${t.cost.runs === 1 ? '' : 's'}` : t.attempts > 1 ? `try ${t.attempts}` : '';
+        if (meta) c.append(el('div', 'sub kb-meta', meta));
+        col.append(c);
+      }
+      if (!list.length) col.append(el('div', 'sub kb-empty', '—'));
+      board.append(col);
+    }
+    box.append(board); return;
+  }
   for (const t of tasks.slice(0, 30)) {
     const row = el('div', 'trow ' + t.status);
     // finished tasks show what they cost: time, and tokens written (the tooltip has runs, calls and tokens read)
