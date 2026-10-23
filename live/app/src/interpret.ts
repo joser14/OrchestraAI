@@ -92,15 +92,17 @@ export function needsInterpret(posts: Post[], msg: Post, workers: string[]): boo
   return conversationBefore(posts, msg, workers).length > 0 && dependsOnContext(msg.body);
 }
 
-// Words that only make sense with the conversation before them: references, follow-ups, complaints.
-const DEPENDENT = /\b(it|its|that|this|those|these|them|they|one|ones|other|others|same|again|still|also|too|instead|either|rest|more|less|missed|didn'?t|did not|doesn'?t|not done|wrong|failed|fix|redo|undo|retry|why|stuck|what about|how about|what are you doing|as well|like before|last time|previous|earlier|above)\b/i;
-/** A message needs the conversation to be understood: short (fewer than 10 words) or with a word like "it", "the
- *  other", "again", "missed". A long, self-contained request ("Write a haiku about GPUs to haiku.md") goes straight
- *  to the brain - the rewrite only cost time there (seen: 11 s added to a clear request). */
+// Follow-ups and complaints: these always lean on the conversation before them.
+const STRONG = /(^|[\s,.!?])(the other( ones?)?|that one|this one|the same|same as|again|still|instead|missed|didn'?t|did not|doesn'?t|isn'?t done|not done|wrong|failed|redo|undo|retry|why|stuck|what about|how about|what are you doing|as well|like before|last time|previous|earlier|above|the rest)(?=$|[\s,.!?])/i;
+// Plain references: in a long request they usually point inside the request itself ("research X and make it a PDF").
+const WEAK = /(^|[\s,.!?])(it|its|that|this|those|these|them|they|one|ones)(?=$|[\s,.!?])/i;
+/** A message needs the conversation to be understood: short (fewer than 10 words), a follow-up word ("again",
+ *  "missed", "the other one"), or a plain reference ("it", "that") in a fairly short message. A long, self-contained
+ *  request goes straight to the brain (seen: "Write three one-line tips..." rewritten because "one-line" matched "one"). */
 export function dependsOnContext(body: string): boolean {
   const text = String(body || '').trim();
   const words = text.split(/\s+/).filter(Boolean).length;
-  return words < 10 || DEPENDENT.test(text);
+  return words < 10 || STRONG.test(text) || (words < 16 && WEAK.test(text));
 }
 
 export const SYSTEM = `You read a short chat between jr (the boss) and an AI team, and rewrite jr's LATEST message as ONE clear,

@@ -294,6 +294,7 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
           last: st.lastStatus || st.lastRunStatus || '', lastAt: st.lastRunAtMs || 0, nextAt: board ? 0 : st.nextRunAtMs || 0, errors: st.consecutiveErrors || 0, lastError: String(st.lastError || '').slice(0, 200) };
       }).sort((a: any, b: any) => Number(a.protected) - Number(b.protected) || String(a.name).localeCompare(String(b.name))) };
     },
+    '/api/version': () => { let version = ''; try { version = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'package.json'), 'utf8')).version || ''; } catch {} return { version }; },
     // Recipes (after goose): saved requests with {blanks}; the page fills them and posts the result to main
     '/api/recipes': () => ({ recipes: recipes() }),
     // Skills page > Team skills: jr's SKILL.md playbooks (teamskills.ts)

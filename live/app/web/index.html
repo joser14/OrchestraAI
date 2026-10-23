@@ -9,6 +9,8 @@
 <script>
   // Look (8-bit by default, or classic), set before the first paint so the page never flashes the other style.
   (function () { var l = '8bit'; try { l = localStorage.getItem('look') || '8bit'; } catch (e) {} if (l === '8bit') document.documentElement.dataset.look = '8bit'; })();
+  // Simple mode by default: advanced pages appear after "Show advanced" (remembered)
+  (function () { try { if (localStorage.getItem('adv') === '1') document.documentElement.dataset.adv = '1'; } catch (e) {} })();
 </script>
 <style>
   /* Dark by default; the ☀ button switches to light (remembered). */
@@ -232,6 +234,20 @@
   .rc-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; } .rc-fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   #rcPreview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ts-form { border: 1px solid var(--border); padding: 12px; margin: 4px 0 14px; } #tsList { margin-top: 4px; } .sk-foot .small { margin-left: 6px; }
+  /* Simple mode: advanced pages hidden until "Show advanced" */
+  html:not([data-adv]) .nav .adv { display: none; }
+  .nav-adv { display: flex; align-items: center; gap: 8px; margin: 14px 10px 4px; font-size: 12px; color: var(--muted); cursor: pointer; }
+  .nav-meta { margin-top: 8px; font-size: 11px; color: var(--muted); } .nav-meta a { color: var(--muted); } .nav-meta a:hover { color: var(--text); }
+  /* First-run welcome */
+  .welcome { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; background: rgba(0, 0, 0, .72); padding: 16px; }
+  .welcome[hidden] { display: none; }
+  .wl-card { width: min(620px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--panel); border: 1px solid var(--border); padding: 26px 28px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px; }
+  .wl-steps { display: flex; gap: 6px; } .wl-steps i { flex: 1; height: 4px; background: var(--border); } .wl-steps i.on { background: var(--red); }
+  .wl-card h2 { margin: 0; font-size: 22px; } .wl-card p { margin: 0; color: var(--muted); line-height: 1.5; }
+  .wl-check { display: flex; flex-direction: column; gap: 6px; } .wl-check div { display: flex; gap: 8px; font-size: 14px; } .wl-check .ok { color: #4ade80; } .wl-check .no { color: #f3c969; }
+  .wl-form { display: grid; gap: 10px; } .wl-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  .wl-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 4px; }
+  .wl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
   /* Tasks Kanban: four columns, compact cards */
   .kanban { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: start; }
   .kb-col { border: 1px solid var(--border); padding: 8px; min-height: 120px; display: flex; flex-direction: column; gap: 8px; background: color-mix(in srgb, var(--bg) 50%, transparent); }
@@ -629,32 +645,36 @@
 <aside class="sidenav">
   <div class="brand"><span class="logo">&gt;_</span><div><h1>Orchestra</h1><div class="tag">local AI team</div></div></div>
   <nav class="nav" id="tabs">
-    <div class="nav-label">Watch</div>
+    <!-- Simple mode (default) shows the everyday pages; "Show advanced" reveals the rest (class adv) -->
+    <div class="nav-label">Your team</div>
     <button type="button" data-tab="flow" class="on"><span class="ico">✦</span>Flow <span class="live-dot" id="flowNavDot"></span></button>
-    <button type="button" data-tab="details"><span class="ico">◎</span>Agent details <span class="badge" id="liveBadge"></span></button>
     <button type="button" data-tab="dash"><span class="ico">▦</span>Dashboard</button>
-    <button type="button" data-tab="metrics"><span class="ico">📈</span>Metrics</button>
-    <div class="nav-label">Work</div>
-    <button type="button" data-tab="board"><span class="ico">✉</span>Board</button>
-    <button type="button" data-tab="chat"><span class="ico">💬</span>Chat with the composer</button>
+    <button type="button" data-tab="chat"><span class="ico">💬</span>Ask the team</button>
     <button type="button" data-tab="tasks"><span class="ico">☑</span>Tasks <span class="badge" id="taskBadge"></span></button>
     <button type="button" data-tab="files"><span class="ico">▤</span>Files</button>
-    <div class="nav-label">Configure</div>
-    <button type="button" data-tab="library"><span class="ico">◈</span>Model library <span class="badge" id="libBadge"></span></button>
-    <button type="button" data-tab="tools"><span class="ico">⚒</span>Tools</button>
     <button type="button" data-tab="memory"><span class="ico">✎</span>Memory</button>
-    <button type="button" data-tab="skills"><span class="ico">✦</span>Skills</button>
+    <div class="nav-label adv">Watch closely</div>
+    <button type="button" class="adv" data-tab="board"><span class="ico">✉</span>Messages</button>
+    <button type="button" class="adv" data-tab="details"><span class="ico">◎</span>Agent details <span class="badge" id="liveBadge"></span></button>
+    <button type="button" class="adv" data-tab="metrics"><span class="ico">📈</span>Metrics</button>
+    <button type="button" class="adv" data-tab="live"><span class="ico">◉</span>Sessions</button>
+    <div class="nav-label adv">Customize</div>
+    <button type="button" class="adv" data-tab="library"><span class="ico">◈</span>Models <span class="badge" id="libBadge"></span></button>
+    <button type="button" class="adv" data-tab="tools"><span class="ico">⚒</span>Tools</button>
+    <button type="button" class="adv" data-tab="skills"><span class="ico">✦</span>Skills</button>
+    <div class="nav-label">Settings</div>
     <button type="button" data-tab="settings"><span class="ico">⛭</span>Settings <span class="badge warn" id="setBadge"></span></button>
-    <button type="button" data-tab="setup"><span class="ico">⬢</span>Setup</button>
-    <button type="button" data-tab="live"><span class="ico">◉</span>Sessions</button>
-    <button type="button" data-tab="system"><span class="ico">⚙</span>System <span class="badge warn" id="sysBadge"></span></button>
-    <button type="button" data-tab="logs"><span class="ico">≡</span>Logs <span class="badge warn" id="logBadge"></span></button>
+    <button type="button" class="adv" data-tab="setup"><span class="ico">⬢</span>Setup</button>
+    <button type="button" class="adv" data-tab="system"><span class="ico">⚙</span>System <span class="badge warn" id="sysBadge"></span></button>
+    <button type="button" class="adv" data-tab="logs"><span class="ico">≡</span>Logs <span class="badge warn" id="logBadge"></span></button>
+    <label class="nav-adv"><input type="checkbox" id="advToggle"> Show advanced</label>
   </nav>
   <div class="nav-foot">
     <div class="svc"><span class="dot" id="svcGw"></span>Gateway</div>
     <div class="svc"><span class="dot" id="svcOl"></span>Ollama</div>
     <div class="svc" id="svcGpu">GPU …</div>
     <div class="status-pill" id="updated">loading…</div>
+    <div class="nav-meta"><span id="appVer">Orchestra</span> · <a href="https://github.com/joser14/OrchestraAI#readme" target="_blank" rel="noopener">Help</a> · <a href="#" id="tourAgain">Welcome tour</a></div>
   </div>
 </aside>
 <div class="content">
@@ -1012,6 +1032,36 @@
       <div class="t-row"><input id="customTag" class="inp" placeholder="e.g. qwen3:8b  ·  mistral-nemo  ·  hf.co/bartowski/Some-Model-GGUF:Q4_K_M"><button type="button" class="small" id="customBtn">Add to library</button></div>
       <div class="sub" style="margin-top:6px">It is checked against the registry, then shows up in the list above as <b>Custom</b>. Install &amp; test it before giving it a role: a model must pass the tool-call test to join the team.</div>
     </section>
+  </div>
+
+  <!-- FIRST-RUN WELCOME (3 steps; replay from the sidebar's "Welcome tour") -->
+  <div class="welcome" id="welcome" hidden role="dialog" aria-modal="true" aria-labelledby="wlTitle">
+    <div class="wl-card">
+      <div class="wl-steps"><i id="wlS1" class="on"></i><i id="wlS2"></i><i id="wlS3"></i></div>
+      <section id="wlStep1">
+        <h2 id="wlTitle">Welcome to Orchestra</h2>
+        <p>Your own AI team, running privately on this computer. You ask for something; a composer plans it, workers do it, and the results land in your work folder. First, let's make sure everything it needs is here.</p>
+        <div class="wl-check" id="wlCheck"><div class="sub">Checking this computer…</div></div>
+        <div class="wl-foot"><button type="button" class="small ghost" id="wlFix" hidden>Set everything up</button><span></span><button type="button" id="wlNext1">Next</button></div>
+      </section>
+      <section id="wlStep2" hidden>
+        <h2>Tell the team about you</h2>
+        <p>A few lines help every answer fit you. The team reads this at the start of every job; change it any time on the Memory page.</p>
+        <div class="wl-form">
+          <label>What should the team call you?<input id="wlName" class="inp" placeholder="Alex" autocomplete="off"></label>
+          <label>What do you do, or what will you use it for?<input id="wlWork" class="inp" placeholder="Small business owner: research, reports, planning"></label>
+          <label>How do you like results?<input id="wlStyle" class="inp" placeholder="Short and clear, as a PDF with a summary table"></label>
+        </div>
+        <div class="wl-foot"><button type="button" class="small ghost" id="wlBack2">Back</button><button type="button" class="small ghost" id="wlSkip2">Skip</button><button type="button" id="wlNext2">Save and continue</button></div>
+      </section>
+      <section id="wlStep3" hidden>
+        <h2>Ask for your first result</h2>
+        <p>Pick a starting point or write your own request. Watch it happen on the Flow page; the result appears in Files.</p>
+        <div class="wl-chips" id="wlChips"></div>
+        <textarea id="wlAsk" class="inp" rows="3" placeholder="e.g. Research the best budget 4K monitors and give me a PDF comparison"></textarea>
+        <div class="wl-foot"><button type="button" class="small ghost" id="wlBack3">Back</button><button type="button" class="small ghost" id="wlDone">I'll do it later</button><button type="button" id="wlSend">Send to the team</button></div>
+      </section>
+    </div>
   </div>
 
   <!-- MEMORY -->
@@ -1554,13 +1604,13 @@ document.querySelectorAll('.menu-list button').forEach((b) => b.addEventListener
 // ---- pages: Team and Chat are the app; the rest are admin views behind ⚙ (remembered; also #metrics etc.) ----
 const PAGES = {
   flow: ['Flow', 'Your team live: who is thinking, what is moving and what came out'], details: ['Agent details', 'Watch exactly what each agent is doing: every thought, tool call and result'],
-  board: ['Board', 'Every message between you, the composer and the agents'], chat: ['Chat with the composer', 'Ask the composer directly: plans, status, why it decided something'],
+  board: ['Messages', 'Every message between you, the composer and the agents'], chat: ['Ask the team', 'Talk to the composer directly: ask for work, status, or why it decided something'],
   dash: ['Overview', 'Your team at a glance'], metrics: ['Metrics', 'Tokens, work, speed and GPU over time'], live: ['Session details', 'Every agent and helper session, step by step'],
   tasks: ['Tasks', 'Tracked work and recurring automations'], logs: ['Logs', 'Every log Orchestra, OpenClaw and Ollama write, live'],
   files: ['Files', 'Deliverables, uploads and history'], tools: ['Tools & models', 'Run the agents’ tools yourself and pick their models'],
   system: ['System', 'Health, GPU, processes and logs'],
   setup: ['Setup', 'Requirements, this PC, the model lineup that fits it, and first-run setup'],
-  library: ['Model library', 'Every model Orchestra knows: install, test and pick which one does each job'],
+  library: ['Models', 'Every model Orchestra knows: install, test and pick which one does each job'],
   settings: ['Settings', 'Autonomy, workers, model types and approvals'],
   memory: ['Memory', 'What the team remembers: your standing notes, and each agent\'s own memory'],
   skills: ['Skills', 'Ready-made know-how the agents can load from OpenClaw'],
@@ -1694,6 +1744,54 @@ $('rcRun').onsubmit = async (e) => {
 $('rcSave').onclick = async () => { try { toast((await postJSON('/api/recipes/save', { name: $('rcName').value, template: $('rcTemplate').value, old: rcEditing })).msg); $('rcEdit').hidden = true; loadRecipes(); } catch (e) { $('rcMsg').textContent = e.message; } };
 $('rcDel').onclick = async () => { if (!rcEditing || !confirm(`Delete the recipe "${rcEditing}"?`)) return; try { toast((await postJSON('/api/recipes/remove', { name: rcEditing })).msg); $('rcEdit').hidden = true; loadRecipes(); } catch (e) { toast(e.message, true); } };
 loadRecipes();
+
+// ---- Simple mode / Show advanced (remembered per computer) ----
+$('advToggle').checked = document.documentElement.dataset.adv === '1';
+$('advToggle').onchange = (e) => { if (e.target.checked) document.documentElement.dataset.adv = '1'; else delete document.documentElement.dataset.adv; try { localStorage.setItem('adv', e.target.checked ? '1' : '0'); } catch {} };
+fetch('/api/version').then((r) => r.json()).then((v) => { if (v && v.version) $('appVer').textContent = 'Orchestra ' + v.version; }).catch(() => {});
+
+// ---- first-run welcome: ready check, about you (-> team memory), first request ----
+function wlStep(n) { for (const i of [1, 2, 3]) { $('wlStep' + i).hidden = i !== n; $('wlS' + i).classList.toggle('on', i <= n); } }
+async function wlCheck() {
+  const r = await fetch('/api/setup/ready').then((x) => x.json()).catch(() => null);
+  const items = ((r && r.prereqs) || []).filter((p) => p.group !== 'tools');
+  const teamOk = r && !(r.missing || []).some((m) => /^(agent|job|plugin|provider)/.test(m));
+  const rows = [...items.map((p) => [p.ok, p.name, p.ok ? '' : p.detail]), ['AI team', !!teamOk, teamOk ? '' : 'needs setting up']].map(([ok, name, why]) => { const d = el('div'); d.append(el('span', ok ? 'ok' : 'no', ok ? '✓' : '○'), document.createTextNode(` ${name}${why ? ' - ' + why : ''}`)); return d; });
+  $('wlCheck').replaceChildren(...(rows.length ? rows : [el('div', 'sub', 'Could not check this computer.')]));
+  const missing = items.some((p) => !p.ok) || !teamOk; $('wlFix').hidden = !missing;
+  $('wlNext1').textContent = missing ? 'Continue anyway' : 'Next';
+}
+function openWelcome() { $('welcome').hidden = false; wlStep(1); wlCheck(); }
+function closeWelcome() { $('welcome').hidden = true; try { localStorage.setItem('welcomed', '1'); } catch {} }
+$('wlFix').onclick = async () => { $('wlFix').disabled = true; $('wlFix').textContent = 'Setting up…'; try { const r = await postJSON('/api/setup/fix', { id: 'all' }); if (r.needMain) { closeWelcome(); showTab('setup'); toast(r.msg); return; } toast(r.msg || 'Setting up: this can take a few minutes.'); } catch (e) { toast(e.message, true); } setTimeout(() => { $('wlFix').disabled = false; $('wlFix').textContent = 'Set everything up'; wlCheck(); }, 8000); };
+$('wlNext1').onclick = () => wlStep(2);
+$('wlBack2').onclick = () => wlStep(1); $('wlSkip2').onclick = () => { wlStep(3); wlChips(); };
+$('wlNext2').onclick = async () => {
+  const name = $('wlName').value.trim(), work = $('wlWork').value.trim(), style = $('wlStyle').value.trim();
+  if (name || work || style) {
+    try {
+      const cur = await fetch('/api/memory/file?id=team%3Amemory.md').then((x) => x.json());
+      const about = ['## About me', name && `- Call me ${name}.`, work && `- What I do: ${work}`, style && `- How I like results: ${style}`].filter(Boolean).join('\n');
+      const text = String(cur.text || '').replace(/## About me[\s\S]*?(?=\n## |$)/, '').replace(/\n*- \s*$/m, '').trimEnd() + '\n\n' + about + '\n';
+      await postJSON('/api/memory/save', { id: 'team:memory.md', text });
+      toast('Saved to the team memory.');
+    } catch (e) { toast(e.message, true); }
+  }
+  wlStep(3); wlChips();
+};
+function wlChips() {
+  $('wlChips').replaceChildren(...rcList.slice(0, 4).map((x) => { const b = el('button', 'small ghost', x.name); b.type = 'button'; b.onclick = () => { $('wlAsk').value = x.template.replace(/\{([\w ]{1,30})\}/g, (m, k) => `[${k}]`); $('wlAsk').focus(); }; return b; }));
+}
+$('wlBack3').onclick = () => wlStep(2);
+$('wlDone').onclick = () => { closeWelcome(); showTab('dash'); };
+$('wlSend').onclick = async () => {
+  const text = $('wlAsk').value.trim(); if (!text) { $('wlAsk').focus(); return; }
+  if (/\[[\w ]{1,30}\]/.test(text)) { toast('Fill in the [blanks] first.', true); return; }
+  try { await postJSON('/api/post', { to: 'main', text }); toast('Sent! Watch the team work on the Flow page.'); closeWelcome(); showTab('flow'); } catch (e) { toast(e.message, true); }
+};
+$('tourAgain').onclick = (e) => { e.preventDefault(); openWelcome(); };
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('welcome').hidden) closeWelcome(); });
+(() => { let seen = false; try { seen = localStorage.getItem('welcomed') === '1'; } catch {} if (!seen) setTimeout(openWelcome, 800); })();
 
 let tlLastPoll = 0;
 async function loadTelemetry() {

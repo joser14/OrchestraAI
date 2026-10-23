@@ -72,7 +72,8 @@ test('a follow-up within 30 min is rewritten, with jr, main and DONE posts as co
 test('only messages that lean on the conversation are rewritten', () => {
   for (const m of ['you missed one', 'the other one is still there', 'clean it up what are you doing', 'you didnt do it', 'do the same for junk4', 'why did that fail'])
     assert.equal(dependsOnContext(m), true, m);
-  for (const m of ['Write a two-line haiku about GPUs to gpu-haiku2.md in the work folder.', 'Research the best budget 4K monitors under $400 and give me a PDF comparison table.'])
+  for (const m of ['Write a two-line haiku about GPUs to gpu-haiku2.md in the work folder.', 'Research the best budget 4K monitors under $400 and give me a PDF comparison table.',
+    'Write three one-line tips for a tidy desk to desk-tips.md in the work folder.', 'Research the five best note-taking apps for students in 2026 and make it a one-page PDF with a comparison table.'])
     assert.equal(dependsOnContext(m), false, m);
 });
 

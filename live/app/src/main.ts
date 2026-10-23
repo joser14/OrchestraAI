@@ -109,6 +109,9 @@ await tick();
 // soon after a run ends instead of up to 30 s later.
 setInterval(() => { if (Date.now() - lastTick >= 29000 || cfg.agents.some((a) => o.running(a))) tick(); }, 10000);
 setInterval(health, 120000); health();
+// Hourly, and once 2 min after start: a service restarted more often than hourly never reached the timer, so the
+// work folder's history stopped being saved (seen: no snapshot for a week).
+setTimeout(() => housekeeping(o).catch(() => {}), 120000);
 setInterval(() => housekeeping(o).catch(() => {}), 3600000);
 setInterval(() => { try { usage.update(true); } catch (e: any) { o.log(`usage index: ${e.message}`); } }, 300000);
 try { usage.update(true); } catch (e: any) { o.log(`usage index: ${e.message}`); }
