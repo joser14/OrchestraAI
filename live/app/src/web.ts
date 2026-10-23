@@ -7,6 +7,7 @@ import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, statfsS
 import os, { homedir } from 'node:os';
 import { liveGen } from './ollamaproxy.ts';
 import { listMemory, readMemory, saveMemory } from './memory.ts';
+import { listSkills, saveSkill, removeSkill } from './teamskills.ts';
 import { join, resolve, basename, extname, relative, isAbsolute } from 'node:path';
 import { createRequire } from 'node:module';
 import { execFile, spawn } from 'node:child_process';
@@ -285,6 +286,8 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
           last: st.lastStatus || st.lastRunStatus || '', lastAt: st.lastRunAtMs || 0, nextAt: board ? 0 : st.nextRunAtMs || 0, errors: st.consecutiveErrors || 0, lastError: String(st.lastError || '').slice(0, 200) };
       }).sort((a: any, b: any) => Number(a.protected) - Number(b.protected) || String(a.name).localeCompare(String(b.name))) };
     },
+    // Skills page > Team skills: jr's SKILL.md playbooks (teamskills.ts)
+    '/api/teamskills': () => ({ skills: listSkills(cfg).map(({ name, description, body, mtime }) => ({ name, description, body, mtime })) }),
     // Memory page: the team's memory files (memory.ts keeps it to that fixed set)
     '/api/memory': () => ({ files: listMemory(cfg) }),
     '/api/memory/file': (q) => readMemory(cfg, String(q.get('id') || '')),
@@ -588,6 +591,8 @@ export function startWeb(o: Orchestrator, opts: { soon: () => void; webDir: stri
       await o.gw.runJob(j.id); act(`schedule ${j.name}: run now`);
       return { ok: true, msg: `${j.name} started.` };
     },
+    '/api/teamskills/save': (b) => { const r = saveSkill(cfg, { name: String(b.name || ''), description: String(b.description || ''), body: String(b.body || ''), old: b.old ? String(b.old) : undefined }); act(`skill saved: ${r.name}`); return r; },
+    '/api/teamskills/remove': (b) => { const r = removeSkill(cfg, String(b.name || '')); act(`skill removed: ${b.name}`); return r; },
     '/api/memory/save': (b) => { const r = saveMemory(cfg, String(b.id || ''), String(b.text ?? '')); act(`memory: saved ${b.id}`); return r; },
     // Tools page > Agent tools: switch an OpenClaw tool group on or off for one agent (built-in ones stay on).
     '/api/tools/agent': async (b) => {

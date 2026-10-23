@@ -227,6 +227,7 @@
   .page-title { font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
   .page-sub { font-size: 12.5px; color: var(--muted); }
   .content .wrap { width: 100%; max-width: 1360px; padding: 24px 28px 40px; }
+  .ts-form { border: 1px solid var(--border); padding: 12px; margin: 4px 0 14px; } #tsList { margin-top: 4px; } .sk-foot .small { margin-left: 6px; }
   /* Tasks Kanban: four columns, compact cards */
   .kanban { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: start; }
   .kb-col { border: 1px solid var(--border); padding: 8px; min-height: 120px; display: flex; flex-direction: column; gap: 8px; background: color-mix(in srgb, var(--bg) 50%, transparent); }
@@ -1022,6 +1023,20 @@
   <!-- SKILLS -->
   <div class="tabpane" id="tab-skills">
     <section class="panel pad">
+      <h2>Team skills <span class="sub">your playbooks: agents see the name and description, and read the instructions when a job matches</span>
+        <button type="button" class="small" id="tsNew" style="float:right">+ New skill</button></h2>
+      <form id="tsForm" class="ts-form" hidden>
+        <div class="mcp-grid">
+          <label>Name<input id="tsName" class="inp" placeholder="report-format" autocomplete="off" spellcheck="false"></label>
+          <label>When to use it (one line)<input id="tsDesc" class="inp" placeholder="How to lay out any report PDF for jr: sections, a summary table, sources"></label>
+        </div>
+        <label class="ct-cmd">Instructions <span class="sub">steps, an example, edge cases (Markdown, under 500 lines)</span>
+          <textarea id="tsBody" rows="8" class="inp" placeholder="1. Start with a one-paragraph summary.&#10;2. Then a table: option, price, pros, cons.&#10;3. End with sources as links."></textarea></label>
+        <div class="t-row"><span class="sub" id="tsMsg"></span><button type="button" class="small ghost" id="tsCancel">Cancel</button><button type="button" class="small" id="tsSave">Save skill</button></div>
+      </form>
+      <div id="tsList" class="sk-grid"><div class="sub">Loading…</div></div>
+    </section>
+    <section class="panel pad">
       <h2>Skills <span class="sub">ready-made know-how OpenClaw agents can load when a job calls for it</span></h2>
       <div class="sk-bar">
         <div class="seg" id="skFilter"><button type="button" data-v="ready" class="on">Ready</button><button type="button" data-v="setup">Needs setup</button><button type="button" data-v="all">All</button></div>
@@ -1535,7 +1550,7 @@ function showTab(name) {
   $('pageTitle').textContent = pg[0]; $('pageSub').textContent = pg[1];
   if (name === 'tools') loadTools();
   if (name === 'memory') loadMemory();
-  if (name === 'skills') loadSkillsPage();
+  if (name === 'skills') { loadTeamSkills(); loadSkillsPage(); }
   if (name === 'setup') { loadReady(); loadSetup(); loadSetupProgress(); }
   if (name === 'library') loadLibrary();
   if (window.flowShow) window.flowShow(name === 'flow');
@@ -1989,6 +2004,27 @@ async function loadSkillsPage(force) {
     return card;
   }) : [el('div', 'sub', skFilter === 'ready' ? 'No ready skills match.' : 'No skills match.')]));
 }
+// Team skills: jr's SKILL.md playbooks (list, new, edit, remove)
+let tsEditing = '';
+async function loadTeamSkills() {
+  const r = await fetch('/api/teamskills').then((x) => x.json()).catch(() => null); const list = (r && r.skills) || [];
+  $('tsList').replaceChildren(...(list.length ? list.map((s) => {
+    const card = el('div', 'sk-card ready'); card.title = s.body.slice(0, 400);
+    const head = el('div', 'sk-head'); head.append(el('span', 'sk-e', '★'), el('span', 'sk-name', s.name), el('span', 'sk-st ok', 'team'));
+    const foot = el('div', 'sk-foot'); foot.append(el('span', 'sub', `${s.body.split('\n').length} lines · ${fmtWhen(s.mtime)}`));
+    const btns = el('span'); const ed = el('button', 'small ghost', 'Edit'); ed.type = 'button'; const rm = el('button', 'small ghost', 'Remove'); rm.type = 'button';
+    ed.onclick = () => { tsEditing = s.name; $('tsName').value = s.name; $('tsDesc').value = s.description; $('tsBody').value = s.body; $('tsMsg').textContent = ''; $('tsForm').hidden = false; $('tsName').focus(); };
+    rm.onclick = async () => { if (!confirm(`Remove the skill "${s.name}"?`)) return; try { toast((await postJSON('/api/teamskills/remove', { name: s.name })).msg); } catch (e) { toast(e.message, true); } loadTeamSkills(); };
+    btns.append(ed, rm); foot.append(btns);
+    card.append(head, el('div', 'sk-about', s.description), foot); return card;
+  }) : [el('div', 'sub', 'No team skills yet. Write one for anything the team should always do the same way (report layout, naming files, research steps).')]));
+}
+$('tsNew').onclick = () => { tsEditing = ''; $('tsName').value = $('tsDesc').value = $('tsBody').value = ''; $('tsMsg').textContent = ''; $('tsForm').hidden = false; $('tsName').focus(); };
+$('tsCancel').onclick = () => { $('tsForm').hidden = true; };
+$('tsSave').onclick = async () => {
+  try { const r = await postJSON('/api/teamskills/save', { name: $('tsName').value, description: $('tsDesc').value, body: $('tsBody').value, old: tsEditing || undefined }); toast(r.msg); $('tsForm').hidden = true; loadTeamSkills(); }
+  catch (e) { $('tsMsg').textContent = e.message; }
+};
 document.querySelectorAll('#skFilter button').forEach((b) => { b.onclick = () => { skFilter = b.dataset.v; document.querySelectorAll('#skFilter button').forEach((x) => x.classList.toggle('on', x === b)); loadSkillsPage(); }; });
 $('skSearch').oninput = () => loadSkillsPage();
 $('skRefresh').onclick = () => loadSkillsPage(true);
